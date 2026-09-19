@@ -80,6 +80,23 @@ export type ActiveNavView = 'board' | 'attendance' | 'clients';
 
 export type AttendanceStatus = 'present' | 'remote' | 'late' | 'half-day' | 'absent';
 
+export interface DailyWorkLog {
+  id: string;
+  memberId: string;
+  memberName: string;
+  memberRole: string;
+  avatarColor: string;
+  date: string; // YYYY-MM-DD
+  isPresent: boolean; // Are you present / willing to work today?
+  hoursWorked: number; // Hours of effort put in
+  tasksDone: string; // What did you do?
+  dmsSent: number; // Number of DMs sent
+  callsDone: number; // Number of calls done
+  clientsCount: number; // Number of clients had / handled
+  outcome: string; // Outcome & Results
+  createdAt: string;
+}
+
 export interface AttendanceRecord {
   id: string;
   memberId: string;

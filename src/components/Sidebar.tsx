@@ -55,10 +55,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'attendance' as ActiveNavView,
-      label: 'Daily Attendance',
-      description: 'Clock-in & Team Presence',
+      label: 'Work Logs & Attendance',
+      description: 'Daily Effort & Weekly Logs',
       icon: CalendarCheck,
-      badge: `${presentCount} in`,
+      badge: `${presentCount} active`,
       badgeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
     },
     {

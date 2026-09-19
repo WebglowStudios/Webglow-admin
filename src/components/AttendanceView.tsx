@@ -4,598 +4,618 @@ import React, { useState } from 'react';
 import {
   CalendarCheck,
   Clock,
-  Laptop,
-  Building,
-  CheckCircle2,
-  AlertCircle,
-  XCircle,
-  ChevronLeft,
-  ChevronRight,
-  UserCheck,
+  MessageSquare,
+  PhoneCall,
+  Users,
+  Target,
   RotateCcw,
-  Sparkles,
+  CheckCircle2,
+  XCircle,
+  Briefcase,
+  Trash2,
 } from 'lucide-react';
-import { AttendanceRecord, AttendanceStatus, UserPresence } from '../types/kanban';
-import { getInitialAttendanceForDate } from '../lib/mockData';
+import { DailyWorkLog, UserPresence } from '../types/kanban';
+import { AGENCY_MEMBERS, INITIAL_WORK_LOGS } from '../lib/mockData';
 
-const STORAGE_KEY_ATTENDANCE = 'webglow_attendance_records_v1';
+const STORAGE_KEY_WORK_LOGS = 'webglow_daily_work_logs_v1';
 
 interface AttendanceViewProps {
   currentUser: UserPresence;
 }
 
-const STATUS_CONFIG: Record<
-  AttendanceStatus,
-  { label: string; bg: string; text: string; border: string; icon: React.ElementType }
-> = {
-  present: {
-    label: 'Present',
-    bg: 'bg-emerald-500/15',
-    text: 'text-emerald-400',
-    border: 'border-emerald-500/30',
-    icon: CheckCircle2,
-  },
-  remote: {
-    label: 'Remote',
-    bg: 'bg-sky-500/15',
-    text: 'text-sky-400',
-    border: 'border-sky-500/30',
-    icon: Laptop,
-  },
-  late: {
-    label: 'Late',
-    bg: 'bg-amber-500/15',
-    text: 'text-amber-400',
-    border: 'border-amber-500/30',
-    icon: AlertCircle,
-  },
-  'half-day': {
-    label: 'Half Day',
-    bg: 'bg-indigo-500/15',
-    text: 'text-indigo-400',
-    border: 'border-indigo-500/30',
-    icon: Clock,
-  },
-  absent: {
-    label: 'Absent',
-    bg: 'bg-rose-500/15',
-    text: 'text-rose-400',
-    border: 'border-rose-500/30',
-    icon: XCircle,
-  },
-};
-
 export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) => {
   const getTodayStr = () => new Date().toISOString().split('T')[0];
-  const [selectedDate, setSelectedDate] = useState<string>(getTodayStr());
 
-  // Lazy initialize attendance state from localStorage
-  const [recordsByDate, setRecordsByDate] = useState<Record<string, AttendanceRecord[]>>(() => {
-    const today = new Date().toISOString().split('T')[0];
+  // Lazy load work logs from localStorage
+  const [logs, setLogs] = useState<DailyWorkLog[]>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const saved = localStorage.getItem(STORAGE_KEY_ATTENDANCE);
+        const saved = localStorage.getItem(STORAGE_KEY_WORK_LOGS);
         if (saved) return JSON.parse(saved);
       } catch (err) {
-        console.error('Error reading attendance from localStorage', err);
+        console.error('Error reading daily work logs from localStorage', err);
       }
     }
-    return { [today]: getInitialAttendanceForDate(today) };
+    return INITIAL_WORK_LOGS;
   });
 
-  // Current user's overrides for the selected date
-  const [myStatus, setMyStatus] = useState<AttendanceStatus | null>(null);
-  const [myWorkMode, setMyWorkMode] = useState<'office' | 'remote' | null>(null);
-  const [myNotes, setMyNotes] = useState<string | null>(null);
+  // Selected member filter ('all' or memberId)
+  const [selectedMemberFilter, setSelectedMemberFilter] = useState<string>('all');
 
-  // Save to localStorage
-  const saveRecords = (updated: Record<string, AttendanceRecord[]>) => {
-    setRecordsByDate(updated);
+  // Form state for logging today's work
+  const [formDate, setFormDate] = useState<string>(getTodayStr());
+  const [formIsPresent, setFormIsPresent] = useState<boolean>(true);
+  const [formHours, setFormHours] = useState<string>('7.5');
+  const [formTasks, setFormTasks] = useState<string>('');
+  const [formDms, setFormDms] = useState<string>('10');
+  const [formCalls, setFormCalls] = useState<string>('4');
+  const [formClients, setFormClients] = useState<string>('3');
+  const [formOutcome, setFormOutcome] = useState<string>('');
+
+  const saveLogs = (updated: DailyWorkLog[]) => {
+    setLogs(updated);
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem(STORAGE_KEY_ATTENDANCE, JSON.stringify(updated));
+        localStorage.setItem(STORAGE_KEY_WORK_LOGS, JSON.stringify(updated));
       } catch (err) {
-        console.error('Error saving attendance records', err);
+        console.error('Error saving daily work logs', err);
       }
     }
   };
 
-  // Get current active records for the selected date
-  const currentRecords: AttendanceRecord[] =
-    recordsByDate[selectedDate] || getInitialAttendanceForDate(selectedDate);
-
-  const currentUserRecord = currentRecords.find(
-    (r) =>
-      r.memberId === currentUser.id ||
-      r.memberName.toLowerCase() === currentUser.name.toLowerCase()
-  );
-
-  const activeMyStatus = myStatus ?? currentUserRecord?.status ?? 'present';
-  const activeMyWorkMode = myWorkMode ?? currentUserRecord?.workMode ?? 'office';
-  const activeMyNotes = myNotes ?? currentUserRecord?.notes ?? '';
-
-  // Handle previous / next date navigation
-  const handleDateChange = (offsetDays: number) => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() + offsetDays);
-    setSelectedDate(d.toISOString().split('T')[0]);
-    setMyStatus(null);
-    setMyWorkMode(null);
-    setMyNotes(null);
+  const handleResetSampleData = () => {
+    if (window.confirm('Reset all work logs to default sample week data?')) {
+      saveLogs(INITIAL_WORK_LOGS);
+    }
   };
 
-  const handleResetToToday = () => {
-    setSelectedDate(getTodayStr());
-    setMyStatus(null);
-    setMyWorkMode(null);
-    setMyNotes(null);
-  };
+  const handleSubmitLog = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formTasks.trim()) {
+      alert('Please enter what you did today.');
+      return;
+    }
 
-  // Format date display
-  const formatDateTitle = (dateStr: string) => {
-    const d = new Date(dateStr + 'T00:00:00');
-    return d.toLocaleDateString(undefined, {
-      weekday: 'long',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
+    const hours = parseFloat(formHours) || 0;
+    const dms = parseInt(formDms, 10) || 0;
+    const calls = parseInt(formCalls, 10) || 0;
+    const clients = parseInt(formClients, 10) || 0;
 
-  // Mark current user attendance
-  const handleSaveMyAttendance = () => {
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    const updatedList = [...currentRecords];
-    const userIndex = updatedList.findIndex(
-      (r) =>
-        r.memberId === currentUser.id ||
-        r.memberName.toLowerCase() === currentUser.name.toLowerCase()
-    );
-
-    const recordData: AttendanceRecord = {
-      id: userIndex >= 0 ? updatedList[userIndex].id : `att-${selectedDate}-${currentUser.id}`,
+    const newLog: DailyWorkLog = {
+      id: `log-${Date.now()}`,
       memberId: currentUser.id,
       memberName: currentUser.name,
       memberRole: currentUser.role,
       avatarColor: currentUser.avatarColor || '#388bff',
-      date: selectedDate,
-      status: activeMyStatus,
-      checkInTime:
-        userIndex >= 0 && updatedList[userIndex].checkInTime
-          ? updatedList[userIndex].checkInTime
-          : timeStr,
-      workMode: activeMyWorkMode,
-      notes: activeMyNotes.trim() || undefined,
+      date: formDate,
+      isPresent: formIsPresent,
+      hoursWorked: hours,
+      tasksDone: formTasks.trim(),
+      dmsSent: dms,
+      callsDone: calls,
+      clientsCount: clients,
+      outcome: formOutcome.trim() || 'Work in progress',
+      createdAt: new Date().toISOString(),
     };
 
-    if (userIndex >= 0) {
-      updatedList[userIndex] = { ...updatedList[userIndex], ...recordData };
-    } else {
-      updatedList.unshift(recordData);
-    }
+    // Remove any existing log for this user on the same date, then prepend
+    const filtered = logs.filter(
+      (l) => !(l.memberId === currentUser.id && l.date === formDate)
+    );
+    saveLogs([newLog, ...filtered]);
 
-    const nextAll = { ...recordsByDate, [selectedDate]: updatedList };
-    saveRecords(nextAll);
+    // Reset form fields
+    setFormTasks('');
+    setFormOutcome('');
+    alert('Daily work log saved successfully!');
   };
 
-  // Update a specific member's status
-  const handleUpdateMemberStatus = (recordId: string, status: AttendanceStatus) => {
-    const updatedList = currentRecords.map((r) => {
-      if (r.id === recordId) {
-        return { ...r, status };
-      }
-      return r;
-    });
-    const nextAll = { ...recordsByDate, [selectedDate]: updatedList };
-    saveRecords(nextAll);
-  };
-
-  // Update work mode
-  const handleToggleWorkMode = (recordId: string) => {
-    const updatedList = currentRecords.map((r) => {
-      if (r.id === recordId) {
-        const nextMode = r.workMode === 'office' ? 'remote' : 'office';
-        return {
-          ...r,
-          workMode: nextMode,
-          status: nextMode === 'remote' ? ('remote' as AttendanceStatus) : ('present' as AttendanceStatus),
-        };
-      }
-      return r;
-    });
-    const nextAll = { ...recordsByDate, [selectedDate]: updatedList };
-    saveRecords(nextAll);
-  };
-
-  // Reset current day attendance to defaults
-  const handleResetDayData = () => {
-    if (window.confirm('Reset attendance for this day back to default sample data?')) {
-      const resetList = getInitialAttendanceForDate(selectedDate);
-      const nextAll = { ...recordsByDate, [selectedDate]: resetList };
-      saveRecords(nextAll);
+  const handleDeleteLog = (logId: string) => {
+    if (window.confirm('Are you sure you want to delete this daily work log?')) {
+      saveLogs(logs.filter((l) => l.id !== logId));
     }
   };
 
-  // Metrics calculation
-  const totalCount = currentRecords.length;
-  const presentCount = currentRecords.filter(
-    (r) => r.status === 'present' || r.status === 'remote' || r.status === 'late'
-  ).length;
-  const officeCount = currentRecords.filter((r) => r.workMode === 'office' && r.status !== 'absent').length;
-  const remoteCount = currentRecords.filter((r) => r.workMode === 'remote' && r.status !== 'absent').length;
-  const lateCount = currentRecords.filter((r) => r.status === 'late').length;
-  const attendanceRate = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0;
+  // Group team members: all distinct members that have logs or are in AGENCY_MEMBERS
+  const allTeamMembers = Array.from(
+    new Map(
+      [
+        ...AGENCY_MEMBERS.map((m) => ({
+          id: m.id,
+          name: m.name,
+          role: m.role,
+          avatarColor: m.avatarColor,
+        })),
+        {
+          id: currentUser.id,
+          name: currentUser.name,
+          role: currentUser.role,
+          avatarColor: currentUser.avatarColor,
+        },
+        ...logs.map((l) => ({
+          id: l.memberId,
+          name: l.memberName,
+          role: l.memberRole,
+          avatarColor: l.avatarColor,
+        })),
+      ].map((m) => [m.id, m])
+    ).values()
+  );
+
+  // Overall Weekly Totals
+  const totalTeamHours = logs.reduce((sum, l) => sum + (l.hoursWorked || 0), 0);
+  const totalTeamDms = logs.reduce((sum, l) => sum + (l.dmsSent || 0), 0);
+  const totalTeamCalls = logs.reduce((sum, l) => sum + (l.callsDone || 0), 0);
+  const totalTeamClients = logs.reduce((sum, l) => sum + (l.clientsCount || 0), 0);
+
+  // Filtered members for the segregated view
+  const visibleMembers =
+    selectedMemberFilter === 'all'
+      ? allTeamMembers
+      : allTeamMembers.filter((m) => m.id === selectedMemberFilter);
+
+  const formatDateDisplay = (dateStr: string) => {
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
 
   return (
     <div className="flex-1 w-full overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
-      {/* Top Header & Date Switcher */}
+      {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#101214]/80 backdrop-blur-md p-4 sm:p-5 rounded-2xl border border-[#22272b] shadow-xl">
         <div>
           <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+            <div className="p-1.5 rounded-lg bg-sky-500/20 text-sky-400 border border-sky-500/30">
               <CalendarCheck className="w-5 h-5" />
             </div>
-            <h1 className="text-xl font-bold text-white tracking-tight">Daily Attendance</h1>
-            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-              {attendanceRate}% Logged
-            </span>
+            <h1 className="text-xl font-bold text-white tracking-tight">
+              Daily Attendance & Weekly Work Logs
+            </h1>
           </div>
           <p className="text-xs text-neutral-400 mt-1">
-            Agency team attendance, daily clock-in timestamps, and office/remote mode tracking.
+            Track daily presence, hours of effort, sales activity (DMs, calls, clients), and weekly outcomes segregated per team member.
           </p>
         </div>
 
-        {/* Date Navigator Controls */}
-        <div className="flex items-center gap-2 self-start md:self-auto">
+        <div className="flex items-center gap-2.5">
           <button
             type="button"
-            onClick={() => handleDateChange(-1)}
-            title="Previous Day"
-            className="p-2 rounded-xl bg-[#161a1d] hover:bg-[#22272b] border border-[#384148] text-neutral-300 hover:text-white transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-
-          <div className="px-3.5 py-1.5 rounded-xl bg-[#161a1d] border border-sky-500/30 text-xs font-semibold text-white flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
-            <span>{formatDateTitle(selectedDate)}</span>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => handleDateChange(1)}
-            title="Next Day"
-            className="p-2 rounded-xl bg-[#161a1d] hover:bg-[#22272b] border border-[#384148] text-neutral-300 hover:text-white transition-colors"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-
-          {selectedDate !== getTodayStr() && (
-            <button
-              type="button"
-              onClick={handleResetToToday}
-              className="px-2.5 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-xs font-semibold text-sky-300 transition-colors"
-            >
-              Today
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={handleResetDayData}
-            title="Reset Day Sample"
-            className="p-2 rounded-xl hover:bg-[#1d2125] text-neutral-400 hover:text-white transition-colors"
+            onClick={handleResetSampleData}
+            title="Reset to sample week logs"
+            className="p-2 rounded-xl bg-[#161a1d] hover:bg-[#22272b] border border-[#384148] text-neutral-400 hover:text-white transition-colors"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* Aggregate Presence Metric Cards */}
+      {/* Aggregate Weekly Performance Rollup Bar */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         <div className="p-4 rounded-xl bg-[#101214]/80 backdrop-blur-md border border-[#22272b] shadow-lg">
           <div className="flex items-center justify-between text-xs text-neutral-400 mb-1">
-            <span>Total Checked In</span>
-            <UserCheck className="w-4 h-4 text-emerald-400" />
+            <span>Total Effort Logged</span>
+            <Clock className="w-4 h-4 text-sky-400" />
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-white font-mono">{presentCount}</span>
-            <span className="text-xs text-neutral-400 font-normal">/ {totalCount} members</span>
+          <div className="text-2xl font-bold text-white font-mono">
+            {totalTeamHours.toFixed(1)} <span className="text-xs font-normal text-neutral-400">hours</span>
           </div>
-          <div className="w-full bg-[#161a1d] h-1.5 rounded-full overflow-hidden mt-2.5">
-            <div
-              className="bg-emerald-400 h-full rounded-full transition-all duration-500"
-              style={{ width: `${attendanceRate}%` }}
-            />
-          </div>
+          <p className="text-[10px] text-neutral-500 mt-1">Accumulated effort this week</p>
         </div>
 
         <div className="p-4 rounded-xl bg-[#101214]/80 backdrop-blur-md border border-[#22272b] shadow-lg">
           <div className="flex items-center justify-between text-xs text-neutral-400 mb-1">
-            <span>In-Office vs Remote</span>
-            <Building className="w-4 h-4 text-sky-400" />
+            <span>Total DMs Sent</span>
+            <MessageSquare className="w-4 h-4 text-emerald-400" />
           </div>
-          <div className="flex items-baseline gap-3">
-            <div className="text-sm font-semibold text-white">
-              <span className="text-sky-400 font-mono text-xl">{officeCount}</span> Office
-            </div>
-            <div className="text-sm font-semibold text-white">
-              <span className="text-cyan-400 font-mono text-xl">{remoteCount}</span> Remote
-            </div>
+          <div className="text-2xl font-bold text-emerald-300 font-mono">
+            {totalTeamDms} <span className="text-xs font-normal text-neutral-400">outbound</span>
           </div>
-          <p className="text-[10px] text-neutral-500 mt-2">Flexible hybrid work policy</p>
+          <p className="text-[10px] text-neutral-500 mt-1">Client and prospect direct messages</p>
         </div>
 
         <div className="p-4 rounded-xl bg-[#101214]/80 backdrop-blur-md border border-[#22272b] shadow-lg">
           <div className="flex items-center justify-between text-xs text-neutral-400 mb-1">
-            <span>Punctuality / Late</span>
-            <AlertCircle className="w-4 h-4 text-amber-400" />
+            <span>Calls Conducted</span>
+            <PhoneCall className="w-4 h-4 text-amber-400" />
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-amber-300 font-mono">{lateCount}</span>
-            <span className="text-xs text-neutral-400 font-normal">late arrivals</span>
+          <div className="text-2xl font-bold text-amber-300 font-mono">
+            {totalTeamCalls} <span className="text-xs font-normal text-neutral-400">calls</span>
           </div>
-          <p className="text-[10px] text-neutral-500 mt-2">
-            {lateCount === 0 ? 'All members on time' : 'Clocked in past 10:00 AM'}
-          </p>
+          <p className="text-[10px] text-neutral-500 mt-1">Discovery, demo, & support calls</p>
         </div>
 
         <div className="p-4 rounded-xl bg-[#101214]/80 backdrop-blur-md border border-[#22272b] shadow-lg">
           <div className="flex items-center justify-between text-xs text-neutral-400 mb-1">
-            <span>Daily Attendance Rate</span>
-            <Sparkles className="w-4 h-4 text-purple-400" />
+            <span>Clients Engaged</span>
+            <Briefcase className="w-4 h-4 text-purple-400" />
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-purple-300 font-mono">{attendanceRate}%</span>
-            <span className="text-xs text-neutral-400 font-normal">active quota</span>
+          <div className="text-2xl font-bold text-purple-300 font-mono">
+            {totalTeamClients} <span className="text-xs font-normal text-neutral-400">accounts</span>
           </div>
-          <p className="text-[10px] text-neutral-500 mt-2">Target benchmark: 85%+</p>
+          <p className="text-[10px] text-neutral-500 mt-1">Active client relationships handled</p>
         </div>
       </div>
 
-      {/* Current User Interactive Check-In Card */}
+      {/* "Log Today's Work" Card for the Current User */}
       <div className="p-5 rounded-2xl bg-[#1d2125]/90 backdrop-blur-md border border-[#384148] shadow-2xl">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-[#282e33]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#282e33]">
           <div className="flex items-center gap-3">
             <div
               style={{ backgroundColor: currentUser.avatarColor || '#388bff' }}
-              className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white ring-2 ring-sky-400/40 shadow-md"
+              className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white ring-2 ring-sky-400/40 shadow-sm"
             >
               {currentUser.name.charAt(0).toUpperCase()}
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-white">{currentUser.name}</h3>
-                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-sky-500/20 text-sky-300 border border-sky-500/30">
-                  {currentUser.role}
+              <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                <span>Log Daily Work & Attendance</span>
+                <span className="text-[10px] px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                  {currentUser.name}
                 </span>
-              </div>
+              </h2>
               <p className="text-xs text-neutral-400">
-                Mark your daily attendance status for {formatDateTitle(selectedDate)}
+                Log your presence, hours worked, activity metrics, and outcomes for today.
               </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleSaveMyAttendance}
-            className="px-4 py-2 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-sky-500/20 flex items-center justify-center gap-2 transition-all"
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            <span>Confirm & Log Attendance</span>
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
-          {/* Status Selection */}
-          <div>
-            <label className="text-[11px] font-medium text-neutral-400 uppercase tracking-wider block mb-2">
-              Your Status
-            </label>
-            <div className="flex flex-wrap gap-1.5">
-              {(['present', 'remote', 'late', 'half-day', 'absent'] as AttendanceStatus[]).map(
-                (st) => {
-                  const cfg = STATUS_CONFIG[st];
-                  const Icon = cfg.icon;
-                  const isSelected = activeMyStatus === st;
-                  return (
-                    <button
-                      key={st}
-                      type="button"
-                      onClick={() => {
-                        setMyStatus(st);
-                        if (st === 'remote') setMyWorkMode('remote');
-                        if (st === 'present') setMyWorkMode('office');
-                      }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border transition-all ${
-                        isSelected
-                          ? `${cfg.bg} ${cfg.text} ${cfg.border} ring-1 ring-white/20`
-                          : 'bg-[#161a1d] text-neutral-400 border-[#282e33] hover:text-white'
-                      }`}
-                    >
-                      <Icon className="w-3.5 h-3.5" />
-                      <span>{cfg.label}</span>
-                    </button>
-                  );
-                }
-              )}
-            </div>
-          </div>
-
-          {/* Work Mode Toggle */}
-          <div>
-            <label className="text-[11px] font-medium text-neutral-400 uppercase tracking-wider block mb-2">
-              Work Mode
-            </label>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setMyWorkMode('office')}
-                className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold border flex items-center justify-center gap-1.5 transition-all ${
-                  activeMyWorkMode === 'office'
-                    ? 'bg-sky-500/20 text-sky-300 border-sky-500/40 ring-1 ring-sky-400/20'
-                    : 'bg-[#161a1d] text-neutral-400 border-[#282e33] hover:text-white'
-                }`}
-              >
-                <Building className="w-3.5 h-3.5" />
-                <span>In-Office</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setMyWorkMode('remote')}
-                className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold border flex items-center justify-center gap-1.5 transition-all ${
-                  activeMyWorkMode === 'remote'
-                    ? 'bg-sky-500/20 text-sky-300 border-sky-500/40 ring-1 ring-sky-400/20'
-                    : 'bg-[#161a1d] text-neutral-400 border-[#282e33] hover:text-white'
-                }`}
-              >
-                <Laptop className="w-3.5 h-3.5" />
-                <span>Remote</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Daily Work Focus / Notes */}
-          <div>
-            <label className="text-[11px] font-medium text-neutral-400 uppercase tracking-wider block mb-2">
-              Focus / Note for Today
-            </label>
+          <div className="flex items-center gap-2">
+            <label className="text-[11px] text-neutral-400">Date:</label>
             <input
-              type="text"
-              placeholder="e.g. Client meetings, sprint delivery, sales calls..."
-              value={activeMyNotes}
-              onChange={(e) => setMyNotes(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-[#161a1d] border border-[#384148] text-white placeholder-neutral-500 text-xs focus:outline-none focus:border-sky-400 transition-colors"
+              type="date"
+              value={formDate}
+              onChange={(e) => setFormDate(e.target.value)}
+              className="px-2.5 py-1 rounded-lg bg-[#161a1d] border border-[#384148] text-white text-xs focus:outline-none focus:border-sky-400"
             />
           </div>
         </div>
+
+        <form onSubmit={handleSubmitLog} className="space-y-4 pt-4 text-xs">
+          {/* Row 1: Presence Toggle & Hours */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Are you present / willing to work? */}
+            <div className="sm:col-span-2">
+              <label className="text-[11px] font-medium text-neutral-300 uppercase tracking-wider block mb-1.5">
+                Are you present / willing to work today?
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFormIsPresent(true)}
+                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 border transition-all ${
+                    formIsPresent
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 ring-1 ring-emerald-400/30'
+                      : 'bg-[#161a1d] text-neutral-400 border-[#282e33] hover:text-white'
+                  }`}
+                >
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>Yes, Present & Working</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormIsPresent(false)}
+                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 border transition-all ${
+                    !formIsPresent
+                      ? 'bg-rose-500/20 text-rose-300 border-rose-500/50 ring-1 ring-rose-400/30'
+                      : 'bg-[#161a1d] text-neutral-400 border-[#282e33] hover:text-white'
+                  }`}
+                >
+                  <XCircle className="w-4 h-4 text-rose-400" />
+                  <span>Day Off / Not Available</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Hours of Effort */}
+            <div>
+              <label className="text-[11px] font-medium text-neutral-300 uppercase tracking-wider block mb-1.5">
+                Hours of Effort Put In
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  max="24"
+                  value={formHours}
+                  onChange={(e) => setFormHours(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-[#161a1d] border border-[#384148] text-white font-mono text-xs focus:outline-none focus:border-sky-400"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-neutral-400 pointer-events-none">
+                  hours
+                </span>
+              </div>
+            </div>
+
+            {/* Clients Handled */}
+            <div>
+              <label className="text-[11px] font-medium text-neutral-300 uppercase tracking-wider block mb-1.5">
+                Clients Handled Today
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0"
+                  value={formClients}
+                  onChange={(e) => setFormClients(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-[#161a1d] border border-[#384148] text-white font-mono text-xs focus:outline-none focus:border-sky-400"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-neutral-400 pointer-events-none">
+                  clients
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 2: Sales Metrics (DMs Sent, Calls Done) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-[#161a1d]/70 border border-[#282e33]">
+            <div>
+              <label className="text-[11px] font-medium text-neutral-300 flex items-center gap-1.5 mb-1.5">
+                <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Number of DMs Sent</span>
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={formDms}
+                onChange={(e) => setFormDms(e.target.value)}
+                placeholder="e.g. 15"
+                className="w-full px-3 py-1.5 rounded-lg bg-[#1d2125] border border-[#384148] text-white font-mono text-xs focus:outline-none focus:border-sky-400"
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] font-medium text-neutral-300 flex items-center gap-1.5 mb-1.5">
+                <PhoneCall className="w-3.5 h-3.5 text-amber-400" />
+                <span>Number of Calls Conducted</span>
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={formCalls}
+                onChange={(e) => setFormCalls(e.target.value)}
+                placeholder="e.g. 5"
+                className="w-full px-3 py-1.5 rounded-lg bg-[#1d2125] border border-[#384148] text-white font-mono text-xs focus:outline-none focus:border-sky-400"
+              />
+            </div>
+          </div>
+
+          {/* Row 3: What did you do? */}
+          <div>
+            <label className="text-[11px] font-medium text-neutral-300 uppercase tracking-wider block mb-1.5">
+              What did you do today? *
+            </label>
+            <textarea
+              rows={2}
+              required
+              placeholder="Detail your accomplishments, tasks delivered, outreach campaigns, or roadblocks resolved..."
+              value={formTasks}
+              onChange={(e) => setFormTasks(e.target.value)}
+              className="w-full p-3 rounded-xl bg-[#161a1d] border border-[#384148] text-white text-xs placeholder-neutral-500 focus:outline-none focus:border-sky-400 resize-none transition-colors"
+            />
+          </div>
+
+          {/* Row 4: Outcome & Results */}
+          <div>
+            <label className="text-[11px] font-medium text-neutral-300 uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
+              <Target className="w-3.5 h-3.5 text-sky-400" />
+              <span>What was the outcome / results?</span>
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Booked 2 discovery calls, client signed $2k agreement, 1 design approved..."
+              value={formOutcome}
+              onChange={(e) => setFormOutcome(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl bg-[#161a1d] border border-[#384148] text-white text-xs placeholder-neutral-500 focus:outline-none focus:border-sky-400"
+            />
+          </div>
+
+          {/* Submit Button */}
+          <div className="flex justify-end pt-1">
+            <button
+              type="submit"
+              className="px-5 py-2.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-sky-500/20 flex items-center gap-2 transition-all"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>Submit Daily Work Log</span>
+            </button>
+          </div>
+        </form>
       </div>
 
-      {/* All Team Members Attendance Roster */}
-      <div className="rounded-2xl bg-[#101214]/90 backdrop-blur-md border border-[#22272b] overflow-hidden shadow-2xl">
-        <div className="px-5 py-4 border-b border-[#22272b] flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-bold text-white">Agency Team Roster</h2>
-            <p className="text-xs text-neutral-400">
-              Live status overview for all {currentRecords.length} listed team members.
-            </p>
+      {/* Segregated Work Monitoring per Team Member */}
+      <div className="space-y-4">
+        {/* Filter bar for members */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#101214]/70 p-3.5 rounded-2xl border border-[#22272b]">
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-sky-400" />
+            <h2 className="text-xs font-bold text-white uppercase tracking-wider">
+              Segregated Work Monitoring by Member
+            </h2>
+          </div>
+
+          {/* Member Selection Pills */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setSelectedMemberFilter('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                selectedMemberFilter === 'all'
+                  ? 'bg-sky-500 text-white font-semibold shadow-xs'
+                  : 'bg-[#161a1d] text-neutral-400 hover:text-white border border-[#282e33]'
+              }`}
+            >
+              All Members ({allTeamMembers.length})
+            </button>
+            {allTeamMembers.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setSelectedMemberFilter(m.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+                  selectedMemberFilter === m.id
+                    ? 'bg-sky-500 text-white font-semibold shadow-xs'
+                    : 'bg-[#161a1d] text-neutral-400 hover:text-white border border-[#282e33]'
+                }`}
+              >
+                <span
+                  style={{ backgroundColor: m.avatarColor }}
+                  className="w-2 h-2 rounded-full shrink-0"
+                />
+                <span>{m.name.split(' ')[0]}</span>
+              </button>
+            ))}
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="border-b border-[#22272b] bg-[#161a1d]/60 text-neutral-400 uppercase text-[10px] tracking-wider">
-                <th className="py-3 px-4 font-semibold">Member</th>
-                <th className="py-3 px-4 font-semibold">Status</th>
-                <th className="py-3 px-4 font-semibold">Work Mode</th>
-                <th className="py-3 px-4 font-semibold">Clock-In</th>
-                <th className="py-3 px-4 font-semibold">Focus & Notes</th>
-                <th className="py-3 px-4 font-semibold text-right">Quick Change</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#22272b]/60">
-              {currentRecords.map((record) => {
-                const cfg = STATUS_CONFIG[record.status] || STATUS_CONFIG.present;
-                const Icon = cfg.icon;
-                return (
-                  <tr
-                    key={record.id}
-                    className="hover:bg-[#161a1d]/50 transition-colors group"
-                  >
-                    {/* Member */}
-                    <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-2.5">
-                        <div
-                          style={{ backgroundColor: record.avatarColor || '#388bff' }}
-                          className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-xs"
-                        >
-                          {record.memberName.charAt(0).toUpperCase()}
+        {/* Segregated List of Each Member */}
+        <div className="space-y-6">
+          {visibleMembers.map((member) => {
+            // Get all logs for this member, sorted by date descending
+            const memberLogs = logs
+              .filter((l) => l.memberId === member.id)
+              .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+            // Compute member's weekly totals
+            const memberHours = memberLogs.reduce((sum, l) => sum + (l.hoursWorked || 0), 0);
+            const memberDms = memberLogs.reduce((sum, l) => sum + (l.dmsSent || 0), 0);
+            const memberCalls = memberLogs.reduce((sum, l) => sum + (l.callsDone || 0), 0);
+            const memberClients = memberLogs.reduce((sum, l) => sum + (l.clientsCount || 0), 0);
+
+            return (
+              <div
+                key={member.id}
+                className="rounded-2xl bg-[#101214]/90 backdrop-blur-md border border-[#22272b] overflow-hidden shadow-2xl"
+              >
+                {/* Member Header Strip */}
+                <div className="p-4 sm:p-5 border-b border-[#22272b] bg-[#161a1d]/60 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div
+                      style={{ backgroundColor: member.avatarColor || '#388bff' }}
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-md ring-2 ring-white/10"
+                    >
+                      {member.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-bold text-white">{member.name}</h3>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                          {member.role}
+                        </span>
+                      </div>
+                      <p className="text-xs text-neutral-400 mt-0.5">
+                        {memberLogs.length} work logs recorded
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Weekly Rollup Statistics Pill for this user */}
+                  <div className="flex items-center gap-2 flex-wrap text-xs">
+                    <div className="px-3 py-1.5 rounded-xl bg-[#1d2125] border border-[#384148] text-neutral-300 font-mono">
+                      <span className="text-sky-400 font-bold">{memberHours.toFixed(1)}</span> hrs
+                    </div>
+                    <div className="px-3 py-1.5 rounded-xl bg-[#1d2125] border border-[#384148] text-neutral-300 font-mono">
+                      <span className="text-emerald-400 font-bold">{memberDms}</span> DMs
+                    </div>
+                    <div className="px-3 py-1.5 rounded-xl bg-[#1d2125] border border-[#384148] text-neutral-300 font-mono">
+                      <span className="text-amber-400 font-bold">{memberCalls}</span> Calls
+                    </div>
+                    <div className="px-3 py-1.5 rounded-xl bg-[#1d2125] border border-[#384148] text-neutral-300 font-mono">
+                      <span className="text-purple-400 font-bold">{memberClients}</span> Clients
+                    </div>
+                  </div>
+                </div>
+
+                {/* List of Daily Entries for this Member */}
+                <div className="p-4 sm:p-5 space-y-3">
+                  {memberLogs.map((log) => (
+                    <div
+                      key={log.id}
+                      className="p-4 rounded-xl bg-[#161a1d] border border-[#282e33] hover:border-[#384148] transition-all space-y-2.5"
+                    >
+                      {/* Top metadata line: Date, Presence, Hours, Metrics */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#22272b] text-white border border-[#384148]">
+                            {formatDateDisplay(log.date)}
+                          </span>
+
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                              log.isPresent
+                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                                : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                            }`}
+                          >
+                            {log.isPresent ? 'Present & Working' : 'Day Off'}
+                          </span>
+
+                          <span className="text-xs font-mono font-bold text-sky-400">
+                            {log.hoursWorked} hrs effort
+                          </span>
                         </div>
-                        <div className="min-w-0">
-                          <div className="font-semibold text-white truncate flex items-center gap-1.5">
-                            <span>{record.memberName}</span>
-                            {record.memberId === currentUser.id && (
-                              <span className="px-1 py-0.2 rounded text-[9px] bg-sky-500/20 text-sky-300 border border-sky-500/30">
-                                You
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-[10px] text-neutral-400 truncate">
-                            {record.memberRole}
-                          </div>
+
+                        {/* Activity Badges */}
+                        <div className="flex items-center gap-2 text-[11px] font-mono">
+                          <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                            💬 {log.dmsSent} DMs
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                            📞 {log.callsDone} Calls
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                            💼 {log.clientsCount} Clients
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteLog(log.id)}
+                            title="Delete log"
+                            className="p-1 text-neutral-500 hover:text-rose-400 transition-colors ml-1"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
-                    </td>
 
-                    {/* Status Pill */}
-                    <td className="py-3.5 px-4">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${cfg.bg} ${cfg.text} ${cfg.border}`}
-                      >
-                        <Icon className="w-3 h-3" />
-                        <span>{cfg.label}</span>
-                      </span>
-                    </td>
+                      {/* What did they do? */}
+                      <div>
+                        <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-0.5">
+                          Tasks & Deliverables
+                        </div>
+                        <p className="text-xs text-neutral-200 leading-relaxed">
+                          {log.tasksDone}
+                        </p>
+                      </div>
 
-                    {/* Work Mode Toggle */}
-                    <td className="py-3.5 px-4">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleWorkMode(record.id)}
-                        className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-medium border transition-colors ${
-                          record.workMode === 'office'
-                            ? 'bg-sky-500/10 text-sky-300 border-sky-500/30 hover:bg-sky-500/20'
-                            : 'bg-indigo-500/10 text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/20'
-                        }`}
-                        title="Click to toggle Office / Remote"
-                      >
-                        {record.workMode === 'office' ? (
-                          <Building className="w-3 h-3 text-sky-400" />
-                        ) : (
-                          <Laptop className="w-3 h-3 text-indigo-400" />
-                        )}
-                        <span className="capitalize">{record.workMode}</span>
-                      </button>
-                    </td>
-
-                    {/* Clock-In */}
-                    <td className="py-3.5 px-4 font-mono text-neutral-300 text-[11px]">
-                      {record.checkInTime || '--:--'}
-                    </td>
-
-                    {/* Notes */}
-                    <td className="py-3.5 px-4 max-w-xs truncate text-neutral-300">
-                      {record.notes ? (
-                        <span className="text-xs text-neutral-300">{record.notes}</span>
-                      ) : (
-                        <span className="text-[10px] text-neutral-500 italic">No notes logged</span>
+                      {/* Outcome & Results */}
+                      {log.outcome && (
+                        <div className="p-2.5 rounded-lg bg-sky-950/30 border border-sky-500/30 text-xs flex items-start gap-2">
+                          <Target className="w-3.5 h-3.5 text-sky-400 shrink-0 mt-0.5" />
+                          <div className="min-w-0 flex-1">
+                            <span className="text-[10px] font-bold text-sky-300 uppercase tracking-wider block">
+                              Outcome & Results
+                            </span>
+                            <span className="text-sky-100 text-xs">{log.outcome}</span>
+                          </div>
+                        </div>
                       )}
-                    </td>
+                    </div>
+                  ))}
 
-                    {/* Status Switcher */}
-                    <td className="py-3.5 px-4 text-right">
-                      <select
-                        value={record.status}
-                        onChange={(e) =>
-                          handleUpdateMemberStatus(record.id, e.target.value as AttendanceStatus)
-                        }
-                        className="bg-[#161a1d] border border-[#384148] text-white text-[11px] rounded-lg px-2 py-1 focus:outline-none focus:border-sky-400 capitalize"
-                      >
-                        <option value="present">Present</option>
-                        <option value="remote">Remote</option>
-                        <option value="late">Late</option>
-                        <option value="half-day">Half Day</option>
-                        <option value="absent">Absent</option>
-                      </select>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                  {memberLogs.length === 0 && (
+                    <div className="p-6 text-center text-xs text-neutral-500 border border-dashed border-[#282e33] rounded-xl">
+                      No daily work logs recorded for {member.name} yet.
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

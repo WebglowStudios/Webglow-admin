@@ -183,9 +183,6 @@ export const ClientsView: React.FC = () => {
   const productionRevenue = clients
     .filter((c) => c.type === 'production' || c.type === 'both')
     .reduce((sum, c) => sum + (c.revenueCollected || 0), 0);
-  const maintenanceRevenue = clients
-    .filter((c) => c.type === 'maintenance')
-    .reduce((sum, c) => sum + (c.revenueCollected || 0), 0);
 
   const productionClientsCount = clients.filter((c) => c.type === 'production' || c.type === 'both').length;
   const maintenanceClientsCount = clients.filter((c) => c.type === 'maintenance' || c.type === 'both').length;
@@ -216,8 +213,6 @@ export const ClientsView: React.FC = () => {
       maximumFractionDigits: 0,
     }).format(val);
   };
-
-  if (!isLoaded) return null;
 
   return (
     <div className="flex-1 w-full overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
@@ -335,25 +330,39 @@ export const ClientsView: React.FC = () => {
           />
         </div>
 
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {(['all', 'production', 'maintenance'] as const).map((type) => (
-            <button
-              key={type}
-              type="button"
-              onClick={() => setFilterType(type)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                filterType === type
-                  ? 'bg-sky-500 text-white font-semibold shadow-xs'
-                  : 'bg-[#161a1d] text-neutral-400 hover:text-white border border-[#282e33]'
-              }`}
-            >
-              {type === 'all'
-                ? `All (${clients.length})`
-                : type === 'production'
-                ? `Production (${productionClientsCount})`
-                : `Maintenance (${maintenanceClientsCount})`}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {(['all', 'production', 'maintenance'] as const).map((type) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setFilterType(type)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  filterType === type
+                    ? 'bg-sky-500 text-white font-semibold shadow-xs'
+                    : 'bg-[#161a1d] text-neutral-400 hover:text-white border border-[#282e33]'
+                }`}
+              >
+                {type === 'all'
+                  ? `All (${clients.length})`
+                  : type === 'production'
+                  ? `Production (${productionClientsCount})`
+                  : `Maintenance (${maintenanceClientsCount})`}
+              </button>
+            ))}
+          </div>
+
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value as 'all' | ClientStatus)}
+            className="bg-[#161a1d] border border-[#282e33] text-neutral-300 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-sky-400 capitalize"
+          >
+            <option value="all">All Statuses</option>
+            <option value="active">Active</option>
+            <option value="completed">Completed</option>
+            <option value="in_progress">In Progress</option>
+            <option value="paused">Paused</option>
+          </select>
         </div>
       </div>
 

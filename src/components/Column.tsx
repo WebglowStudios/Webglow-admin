@@ -103,27 +103,36 @@ export const Column: React.FC<ColumnProps> = ({
           </button>
 
           {showColMenu && (
-            <div
-              className="absolute right-0 top-full mt-1 w-40 rounded-lg bg-[#1d2125] border border-[#384148] shadow-2xl py-1 z-30 text-xs text-neutral-200"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button
-                onClick={() => {
-                  onDeleteColumn(column.id);
+            <>
+              <div
+                className="fixed inset-0 z-20"
+                onClick={(e) => {
+                  e.stopPropagation();
                   setShowColMenu(false);
                 }}
-                className="w-full text-left px-3 py-1.5 text-xs text-rose-400 hover:bg-rose-950/40 flex items-center gap-2 transition-colors"
+              />
+              <div
+                className="absolute right-0 top-full mt-1 w-40 rounded-lg bg-[#1d2125] border border-[#384148] shadow-2xl py-1 z-30 text-xs text-neutral-200"
+                onClick={(e) => e.stopPropagation()}
               >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Delete Column</span>
-              </button>
-            </div>
+                <button
+                  onClick={() => {
+                    onDeleteColumn(column.id);
+                    setShowColMenu(false);
+                  }}
+                  className="w-full text-left px-3 py-1.5 text-xs text-rose-400 hover:bg-rose-950/40 flex items-center gap-2 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Column</span>
+                </button>
+              </div>
+            </>
           )}
         </div>
       </div>
 
       {/* Cards Scrollable Container */}
-      <div className="flex-1 px-2 pb-2 space-y-2 overflow-y-auto max-h-[calc(100vh-230px)] min-h-[80px]">
+      <div className="flex-1 px-2 pb-2 space-y-2 overflow-y-auto max-h-[calc(100vh-175px)] min-h-[80px]">
         {columnCards.map((card) => (
           <CardItem
             key={card.id}

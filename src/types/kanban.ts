@@ -75,3 +75,42 @@ export interface BoardFilter {
   tag: string | 'all';
   assignee: string | 'all';
 }
+
+export type ActiveNavView = 'board' | 'attendance' | 'clients';
+
+export type AttendanceStatus = 'present' | 'remote' | 'late' | 'half-day' | 'absent';
+
+export interface AttendanceRecord {
+  id: string;
+  memberId: string;
+  memberName: string;
+  memberRole: string;
+  avatarColor: string;
+  date: string; // YYYY-MM-DD
+  status: AttendanceStatus;
+  checkInTime?: string;
+  checkOutTime?: string;
+  workMode: 'office' | 'remote';
+  notes?: string;
+}
+
+export type ClientType = 'production' | 'maintenance' | 'both';
+export type ClientStatus = 'active' | 'completed' | 'in_progress' | 'paused';
+
+export interface ClientRecord {
+  id: string;
+  name: string;
+  type: ClientType;
+  status: ClientStatus;
+  services: string;
+  revenueCollected: number;
+  monthlyRetainer?: number;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  startDate?: string;
+  completionDate?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}

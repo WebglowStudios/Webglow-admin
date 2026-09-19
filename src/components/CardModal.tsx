@@ -4,15 +4,12 @@ import React, { useState } from 'react';
 import {
   X,
   CheckSquare,
-  Users,
   Trash2,
   Layers,
   Plus,
-  Check,
   Phone,
 } from 'lucide-react';
 import { KanbanCard, KanbanColumn, Priority, CardTag } from '../types/kanban';
-import { AGENCY_MEMBERS } from '../lib/mockData';
 import { TagDropdownSelector } from './TagDropdownSelector';
 
 interface CardModalProps {
@@ -48,7 +45,6 @@ const CardModalContent: React.FC<CardModalContentProps> = ({
   const [dueDate, setDueDate] = useState(card.dueDate || '');
   const [tags, setTags] = useState<CardTag[]>(card.tags || []);
   const [checklist, setChecklist] = useState<KanbanCard['checklist']>(card.checklist || []);
-  const [assignees, setAssignees] = useState<KanbanCard['assignees']>(card.assignees || []);
   const [newChecklistText, setNewChecklistText] = useState('');
 
   // Lead / Sales fields
@@ -66,7 +62,7 @@ const CardModalContent: React.FC<CardModalContentProps> = ({
       dueDate: dueDate || null,
       tags,
       checklist,
-      assignees,
+      assignees: card.assignees || [],
       phone: phone.trim() || undefined,
       email: email.trim() || undefined,
       leadValue: leadValue.trim() || undefined,
@@ -113,15 +109,6 @@ const CardModalContent: React.FC<CardModalContentProps> = ({
     const nextTags = exists ? tags.filter((t) => t.id !== tag.id) : [...tags, tag];
     setTags(nextTags);
     handleSave({ tags: nextTags });
-  };
-
-  const handleToggleAssignee = (member: (typeof AGENCY_MEMBERS)[0]) => {
-    const exists = assignees.some((a) => a.id === member.id);
-    const nextAssignees = exists
-      ? assignees.filter((a) => a.id !== member.id)
-      : [...assignees, member];
-    setAssignees(nextAssignees);
-    handleSave({ assignees: nextAssignees });
   };
 
   const checklistDone = checklist.filter((c) => c.completed).length;
@@ -211,7 +198,7 @@ const CardModalContent: React.FC<CardModalContentProps> = ({
         </div>
 
         {/* Quick Properties Strip */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-3.5 rounded-xl bg-[#22272b]/80 border border-[#282e33]">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-xl bg-[#22272b]/80 border border-[#282e33]">
           {/* Priority Select */}
           <div>
             <label className="text-[11px] font-medium text-neutral-400 uppercase tracking-wider block mb-1">
@@ -248,28 +235,6 @@ const CardModalContent: React.FC<CardModalContentProps> = ({
               }}
               className="w-full bg-[#161a1d] border border-[#384148] text-white text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-sky-400"
             />
-          </div>
-
-          {/* Assignees Count */}
-          <div>
-            <label className="text-[11px] font-medium text-neutral-400 uppercase tracking-wider block mb-1">
-              Assignee / Owner
-            </label>
-            <div className="flex items-center gap-1">
-              {assignees.map((a) => (
-                <div
-                  key={a.id}
-                  title={a.name}
-                  style={{ backgroundColor: a.avatarColor }}
-                  className="w-6 h-6 rounded-full text-[10px] font-bold text-white flex items-center justify-center ring-1 ring-[#161a1d]"
-                >
-                  {a.name.charAt(0)}
-                </div>
-              ))}
-              {assignees.length === 0 && (
-                <span className="text-xs text-neutral-500">Unassigned</span>
-              )}
-            </div>
           </div>
 
           {/* Card ID / Created */}
@@ -379,43 +344,6 @@ const CardModalContent: React.FC<CardModalContentProps> = ({
             placeholder="Add lead history, meeting notes, project requirements, or links..."
             className="w-full p-3 rounded-xl bg-[#22272b] border border-[#384148] text-white text-sm placeholder-neutral-500 focus:outline-none focus:border-sky-400 resize-none transition-colors"
           />
-        </div>
-
-        {/* Assignee Members Selection */}
-        <div>
-          <label className="text-xs font-semibold text-neutral-300 uppercase tracking-wider flex items-center gap-1.5 mb-2">
-            <Users className="w-4 h-4 text-indigo-400" />
-            <span>Team Members</span>
-          </label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {AGENCY_MEMBERS.map((member) => {
-              const isAssigned = assignees.some((a) => a.id === member.id);
-              return (
-                <button
-                  key={member.id}
-                  type="button"
-                  onClick={() => handleToggleAssignee(member)}
-                  className={`flex items-center gap-2.5 p-2 rounded-xl border text-left transition-all ${
-                    isAssigned
-                      ? 'bg-sky-950/40 border-sky-400 text-white ring-1 ring-sky-400/30'
-                      : 'bg-[#22272b] border-[#384148] text-neutral-400 hover:text-white hover:bg-[#282e33]'
-                  }`}
-                >
-                  <div
-                    style={{ backgroundColor: member.avatarColor }}
-                    className="w-6 h-6 rounded-full text-xs font-bold text-white flex items-center justify-center shrink-0"
-                  >
-                    {member.name.charAt(0)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-semibold truncate text-white">{member.name}</div>
-                    <div className="text-[10px] text-neutral-400 truncate">{member.role}</div>
-                  </div>
-                  {isAssigned && <Check className="w-4 h-4 text-sky-400 shrink-0" />}
-                </button>
-              );
-            })}
-          </div>
         </div>
 
         {/* Checklist Section */}

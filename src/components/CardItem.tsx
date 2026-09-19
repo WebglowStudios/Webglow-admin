@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   CheckCircle2,
   Clock,
   MoreVertical,
   ChevronRight,
-  User,
   Trash2,
   Eye,
   GripVertical,
@@ -44,6 +44,70 @@ export const CardItem: React.FC<CardItemProps> = ({
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [menuPos, setMenuPos] = useState<{
+    top?: number;
+    bottom?: number;
+    left?: number;
+    right?: number;
+  }>({});
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+
+  // Auto-close menu when Escape is pressed or window scrolls/resizes
+  useEffect(() => {
+    if (!showMenu) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowMenu(false);
+      }
+    };
+
+    const handleScrollOrResize = () => {
+      setShowMenu(false);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    window.addEventListener('resize', handleScrollOrResize);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+      window.removeEventListener('resize', handleScrollOrResize);
+    };
+  }, [showMenu]);
+
+  const handleToggleMenu = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (showMenu) {
+      setShowMenu(false);
+      return;
+    }
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const menuEstimatedHeight = 220;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const pos: { top?: number; bottom?: number; left?: number; right?: number } = {};
+
+      // If near bottom of viewport or last list item, open upward to avoid clipping or overflow
+      if (spaceBelow < menuEstimatedHeight && rect.top > menuEstimatedHeight) {
+        pos.bottom = window.innerHeight - rect.top + 4;
+      } else {
+        pos.top = rect.bottom + 4;
+      }
+
+      // Align right edge of menu to button right edge
+      const rightSpace = window.innerWidth - rect.right;
+      if (rect.right >= 180) {
+        pos.right = rightSpace;
+      } else {
+        pos.left = Math.max(8, rect.left);
+      }
+
+      setMenuPos(pos);
+      setShowMenu(true);
+    }
+  };
 
   // Check if someone else is currently viewing or editing this card
   const viewers = activeUsers.filter(
@@ -119,58 +183,15 @@ export const CardItem: React.FC<CardItemProps> = ({
 
         <div className="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
           <GripVertical className="w-3 h-3 text-neutral-400 cursor-grab" />
-          <div className="relative">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowMenu(!showMenu);
-              }}
-              className="p-1 rounded hover:bg-[#1d2125] text-neutral-400 hover:text-white transition-colors"
-            >
-              <MoreVertical className="w-3 h-3" />
-            </button>
-
-            {/* Quick action menu */}
-            {showMenu && (
-              <div
-                className="absolute right-0 top-full mt-1 w-44 rounded-lg bg-[#1d2125] border border-[#384148] shadow-2xl py-1 z-30 text-xs text-neutral-200"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="px-2.5 py-1 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">
-                  Move to list
-                </div>
-                {columns.map((col) => (
-                  <button
-                    key={col.id}
-                    disabled={col.id === card.columnId}
-                    onClick={() => {
-                      onMoveCard(card.id, col.id);
-                      setShowMenu(false);
-                    }}
-                    className={`w-full text-left px-3 py-1.5 flex items-center justify-between text-xs transition-colors ${
-                      col.id === card.columnId
-                        ? 'text-neutral-500 cursor-default bg-black/20'
-                        : 'text-neutral-200 hover:bg-[#282e33] hover:text-white'
-                    }`}
-                  >
-                    <span>{col.title}</span>
-                    {col.id !== card.columnId && <ChevronRight className="w-3 h-3 text-neutral-400" />}
-                  </button>
-                ))}
-                <div className="border-t border-[#384148] my-1" />
-                <button
-                  onClick={() => {
-                    onDeleteCard(card.id);
-                    setShowMenu(false);
-                  }}
-                  className="w-full text-left px-3 py-1.5 text-xs text-rose-400 hover:bg-rose-950/40 flex items-center gap-2 transition-colors"
-                >
-                  <Trash2 className="w-3 h-3" />
-                  <span>Delete Card</span>
-                </button>
-              </div>
-            )}
-          </div>
+          <button
+            ref={buttonRef}
+            type="button"
+            onClick={handleToggleMenu}
+            className="p-1 rounded hover:bg-[#1d2125] text-neutral-400 hover:text-white transition-colors"
+            title="Card actions"
+          >
+            <MoreVertical className="w-3 h-3" />
+          </button>
         </div>
       </div>
 
@@ -249,35 +270,81 @@ export const CardItem: React.FC<CardItemProps> = ({
         </div>
       )}
 
-      {/* Card Footer: Due Date & Assignee Avatars */}
-      <div className="flex items-center justify-between pt-1 text-xs text-neutral-400">
-        {card.dueDate ? (
-          <div className="flex items-center gap-1 text-[11px] text-neutral-300">
-            <Clock className="w-3 h-3 text-sky-400" />
-            <span>{new Date(card.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
-          </div>
-        ) : (
-          <span />
-        )}
-
-        <div className="flex -space-x-1.5 ml-auto">
-          {card.assignees?.map((a) => (
-            <div
-              key={a.id}
-              title={a.name}
-              style={{ backgroundColor: a.avatarColor || '#0c66e4' }}
-              className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white ring-1 ring-[#22272b]"
-            >
-              {a.name.charAt(0).toUpperCase()}
-            </div>
-          ))}
-          {(!card.assignees || card.assignees.length === 0) && (
-            <div className="w-5 h-5 rounded-full bg-[#101214] border border-[#384148] flex items-center justify-center text-neutral-500">
-              <User className="w-2.5 h-2.5" />
-            </div>
-          )}
+      {/* Card Footer: Due Date only (assignees/members preview removed per user request) */}
+      {card.dueDate && (
+        <div className="flex items-center gap-1 pt-1 text-xs text-neutral-300">
+          <Clock className="w-3 h-3 text-sky-400" />
+          <span className="text-[11px]">
+            {new Date(card.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+          </span>
         </div>
-      </div>
+      )}
+
+      {/* Quick action popup menu rendered through Portal at document.body so it NEVER increases the height of the list/column */}
+      {showMenu && typeof document !== 'undefined' && createPortal(
+        <>
+          {/* Transparent full-screen backdrop to auto-close when clicking anywhere outside */}
+          <div
+            className="fixed inset-0 z-[100]"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowMenu(false);
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setShowMenu(false);
+            }}
+          />
+
+          <div
+            style={{
+              position: 'fixed',
+              top: menuPos.top !== undefined ? `${menuPos.top}px` : undefined,
+              bottom: menuPos.bottom !== undefined ? `${menuPos.bottom}px` : undefined,
+              left: menuPos.left !== undefined ? `${menuPos.left}px` : undefined,
+              right: menuPos.right !== undefined ? `${menuPos.right}px` : undefined,
+            }}
+            className="w-44 rounded-lg bg-[#1d2125] border border-[#384148] shadow-2xl py-1 z-[101] text-xs text-neutral-200 select-none animate-in fade-in zoom-in-95 duration-75"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-2.5 py-1 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">
+              Move to list
+            </div>
+            {columns.map((col) => (
+              <button
+                key={col.id}
+                type="button"
+                disabled={col.id === card.columnId}
+                onClick={() => {
+                  onMoveCard(card.id, col.id);
+                  setShowMenu(false);
+                }}
+                className={`w-full text-left px-3 py-1.5 flex items-center justify-between text-xs transition-colors ${
+                  col.id === card.columnId
+                    ? 'text-neutral-500 cursor-default bg-black/20'
+                    : 'text-neutral-200 hover:bg-[#282e33] hover:text-white'
+                }`}
+              >
+                <span>{col.title}</span>
+                {col.id !== card.columnId && <ChevronRight className="w-3 h-3 text-neutral-400" />}
+              </button>
+            ))}
+            <div className="border-t border-[#384148] my-1" />
+            <button
+              type="button"
+              onClick={() => {
+                onDeleteCard(card.id);
+                setShowMenu(false);
+              }}
+              className="w-full text-left px-3 py-1.5 text-xs text-rose-400 hover:bg-rose-950/40 flex items-center gap-2 transition-colors"
+            >
+              <Trash2 className="w-3 h-3" />
+              <span>Delete Card</span>
+            </button>
+          </div>
+        </>,
+        document.body
+      )}
     </div>
   );
 };

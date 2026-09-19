@@ -3,13 +3,16 @@
 import React, { useState } from 'react';
 import { useRealtimeKanban } from '../hooks/useRealtimeKanban';
 import { Header } from '../components/Header';
-import { StatsBar } from '../components/StatsBar';
 import { Board } from '../components/Board';
 import { CardModal } from '../components/CardModal';
 import { ActivityDrawer } from '../components/ActivityDrawer';
 import { UserIdentityModal } from '../components/UserIdentityModal';
 import { SupabaseSetupModal } from '../components/SupabaseSetupModal';
-import { KanbanCard } from '../types/kanban';
+import { Sidebar } from '../components/Sidebar';
+import { AttendanceView } from '../components/AttendanceView';
+import { ClientsView } from '../components/ClientsView';
+import { KanbanCard, ActiveNavView } from '../types/kanban';
+import { INITIAL_CLIENTS } from '../lib/mockData';
 
 // Default evening river ghats background resembling the screenshot
 const DEFAULT_WALLPAPER =
@@ -20,7 +23,6 @@ export default function Home() {
   const {
     columns,
     cards,
-    allCards,
     activeUsers,
     currentUser,
     activityLog,
@@ -37,6 +39,10 @@ export default function Home() {
     updateUserIdentity,
     resetToDemoData,
   } = useRealtimeKanban();
+
+  // Navigation View State
+  const [activeView, setActiveView] = useState<ActiveNavView>('board');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Modals state
   const [selectedCard, setSelectedCard] = useState<KanbanCard | null>(null);
@@ -86,15 +92,32 @@ export default function Home() {
     updateCard(updated);
   };
 
+  // Compute total revenue for sidebar pill
+  const totalRevenue = INITIAL_CLIENTS.reduce((sum, c) => sum + c.revenueCollected, 0);
+
   return (
     <div
-      className="min-h-screen flex flex-col relative bg-cover bg-center bg-no-repeat bg-fixed text-[#b6c2cf] selection:bg-sky-500/30 selection:text-sky-200"
+      className="min-h-screen flex relative bg-cover bg-center bg-no-repeat bg-fixed text-[#b6c2cf] selection:bg-sky-500/30 selection:text-sky-200"
       style={{ backgroundImage: `url("${wallpaper}")` }}
     >
       {/* Dark Ambient Overlay over wallpaper for Trello list readability */}
       <div className="fixed inset-0 bg-black/40 pointer-events-none z-0" />
 
-      <div className="relative z-10 flex flex-col flex-1 min-h-screen">
+      {/* Modern Collapsible Agency Sidebar */}
+      <Sidebar
+        activeView={activeView}
+        onSelectView={setActiveView}
+        leadsCount={cards.length}
+        presentCount={4}
+        totalRevenue={totalRevenue}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        currentUser={currentUser}
+        onOpenIdentityModal={() => setIsIdentityOpen(true)}
+        isSupabaseMode={isSupabaseMode}
+      />
+
+      <div className="relative z-10 flex flex-col flex-1 min-w-0 min-h-screen">
         {/* Navigation & Live Collaborators Header */}
         <Header
           currentUser={currentUser}
@@ -112,28 +135,35 @@ export default function Home() {
           currentWallpaper={wallpaper}
         />
 
-        {/* Agency Metrics & Stats Bar */}
-        <StatsBar
-          cards={allCards}
-          columns={columns}
-          activeUsers={activeUsers}
-        />
+        {/* View Switcher: Sales Board, Daily Attendance, Clients & Revenue */}
+        {activeView === 'board' && (
+          <main className="flex-1 flex flex-col min-w-0">
+            <Board
+              columns={columns}
+              cards={cards}
+              activeUsers={activeUsers}
+              currentUserId={currentUser.id}
+              onCardClick={handleCardClick}
+              onAddCard={addCard}
+              onDeleteCard={deleteCard}
+              onMoveCard={moveCard}
+              onAddColumn={addColumn}
+              onDeleteColumn={deleteColumn}
+            />
+          </main>
+        )}
 
-        {/* Main Kanban Board Container */}
-        <main className="flex-1 flex flex-col min-w-0">
-          <Board
-            columns={columns}
-            cards={cards}
-            activeUsers={activeUsers}
-            currentUserId={currentUser.id}
-            onCardClick={handleCardClick}
-            onAddCard={addCard}
-            onDeleteCard={deleteCard}
-            onMoveCard={moveCard}
-            onAddColumn={addColumn}
-            onDeleteColumn={deleteColumn}
-          />
-        </main>
+        {activeView === 'attendance' && (
+          <main className="flex-1 flex flex-col min-w-0">
+            <AttendanceView currentUser={currentUser} />
+          </main>
+        )}
+
+        {activeView === 'clients' && (
+          <main className="flex-1 flex flex-col min-w-0">
+            <ClientsView />
+          </main>
+        )}
       </div>
 
       {/* Card Detail & Edit Modal */}

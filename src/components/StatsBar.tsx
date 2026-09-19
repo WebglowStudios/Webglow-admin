@@ -25,56 +25,56 @@ export const StatsBar: React.FC<StatsBarProps> = ({ cards, columns, activeUsers 
   const completionRate = total > 0 ? Math.round((completedCount / total) * 100) : 0;
 
   return (
-    <div className="max-w-[1700px] mx-auto px-4 sm:px-6 py-3">
+    <div className="max-w-[1700px] mx-auto px-4 sm:px-6 py-2.5">
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
         {/* Metric 1: Total Tasks */}
-        <div className="flex items-center gap-3 p-2.5 rounded-xl bg-blue-950/40 border border-blue-900/30">
-          <div className="p-2 rounded-lg bg-blue-600/20 text-blue-400 border border-blue-500/20">
+        <div className="flex items-center gap-3 p-2 rounded-xl bg-[#101214]/80 backdrop-blur-md border border-white/10 shadow-sm">
+          <div className="p-2 rounded-lg bg-white/10 text-sky-400 border border-white/10">
             <Layers className="w-4 h-4" />
           </div>
           <div>
-            <div className="text-[11px] text-slate-400 font-medium">Total Tasks</div>
-            <div className="text-base font-bold text-white leading-none mt-0.5">
-              {total} <span className="text-[11px] font-normal text-slate-400">({columns.length} lists)</span>
+            <div className="text-[11px] text-neutral-400 font-medium">Total Tasks</div>
+            <div className="text-sm font-bold text-white leading-none mt-0.5">
+              {total} <span className="text-[10px] font-normal text-neutral-400">({columns.length} lists)</span>
             </div>
           </div>
         </div>
 
         {/* Metric 2: In Progress */}
-        <div className="flex items-center gap-3 p-2.5 rounded-xl bg-blue-950/40 border border-blue-900/30">
-          <div className="p-2 rounded-lg bg-cyan-600/20 text-cyan-400 border border-cyan-500/20">
+        <div className="flex items-center gap-3 p-2 rounded-xl bg-[#101214]/80 backdrop-blur-md border border-white/10 shadow-sm">
+          <div className="p-2 rounded-lg bg-sky-500/15 text-sky-400 border border-sky-500/20">
             <Clock className="w-4 h-4" />
           </div>
           <div>
-            <div className="text-[11px] text-slate-400 font-medium">In Progress</div>
-            <div className="text-base font-bold text-cyan-300 leading-none mt-0.5">{inProgressCount}</div>
+            <div className="text-[11px] text-neutral-400 font-medium">In Progress</div>
+            <div className="text-sm font-bold text-sky-300 leading-none mt-0.5">{inProgressCount}</div>
           </div>
         </div>
 
         {/* Metric 3: Under Review */}
-        <div className="flex items-center gap-3 p-2.5 rounded-xl bg-blue-950/40 border border-blue-900/30">
-          <div className="p-2 rounded-lg bg-amber-600/20 text-amber-400 border border-amber-500/20">
+        <div className="flex items-center gap-3 p-2 rounded-xl bg-[#101214]/80 backdrop-blur-md border border-white/10 shadow-sm">
+          <div className="p-2 rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/20">
             <Eye className="w-4 h-4" />
           </div>
           <div>
-            <div className="text-[11px] text-slate-400 font-medium">Under Review</div>
-            <div className="text-base font-bold text-amber-300 leading-none mt-0.5">{inReviewCount}</div>
+            <div className="text-[11px] text-neutral-400 font-medium">Under Review</div>
+            <div className="text-sm font-bold text-amber-300 leading-none mt-0.5">{inReviewCount}</div>
           </div>
         </div>
 
         {/* Metric 4: Completed */}
-        <div className="flex items-center gap-3 p-2.5 rounded-xl bg-blue-950/40 border border-blue-900/30">
-          <div className="p-2 rounded-lg bg-emerald-600/20 text-emerald-400 border border-emerald-500/20">
+        <div className="flex items-center gap-3 p-2 rounded-xl bg-[#101214]/80 backdrop-blur-md border border-white/10 shadow-sm">
+          <div className="p-2 rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
             <CheckCircle2 className="w-4 h-4" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex justify-between items-center text-[11px] text-slate-400 font-medium">
+            <div className="flex justify-between items-center text-[11px] text-neutral-400 font-medium">
               <span>Shipped</span>
               <span className="text-emerald-400 font-semibold">{completionRate}%</span>
             </div>
-            <div className="w-full bg-slate-800/80 rounded-full h-1.5 mt-1 overflow-hidden">
+            <div className="w-full bg-white/10 rounded-full h-1.5 mt-1 overflow-hidden">
               <div
-                className="bg-gradient-to-r from-cyan-500 to-emerald-400 h-full rounded-full transition-all duration-500"
+                className="bg-gradient-to-r from-sky-400 to-emerald-400 h-full rounded-full transition-all duration-500"
                 style={{ width: `${completionRate}%` }}
               />
             </div>
@@ -82,13 +82,13 @@ export const StatsBar: React.FC<StatsBarProps> = ({ cards, columns, activeUsers 
         </div>
 
         {/* Metric 5: Online Team */}
-        <div className="hidden lg:flex items-center gap-3 p-2.5 rounded-xl bg-blue-950/40 border border-blue-900/30">
-          <div className="p-2 rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-500/20">
+        <div className="hidden lg:flex items-center gap-3 p-2 rounded-xl bg-[#101214]/80 backdrop-blur-md border border-white/10 shadow-sm">
+          <div className="p-2 rounded-lg bg-indigo-500/15 text-indigo-400 border border-indigo-500/20">
             <Users className="w-4 h-4" />
           </div>
           <div>
-            <div className="text-[11px] text-slate-400 font-medium">Live Presence</div>
-            <div className="text-base font-bold text-indigo-300 leading-none mt-0.5">
+            <div className="text-[11px] text-neutral-400 font-medium">Live Presence</div>
+            <div className="text-sm font-bold text-indigo-300 leading-none mt-0.5">
               {activeUsers.length} Online
             </div>
           </div>

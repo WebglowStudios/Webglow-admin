@@ -46,7 +46,7 @@ export const Board: React.FC<BoardProps> = ({
 
   return (
     <div className="flex-1 w-full overflow-x-auto p-4 sm:p-6">
-      <div className="flex items-start gap-4 min-w-max pb-6">
+      <div className="flex items-start gap-3.5 min-w-max pb-6">
         {sortedColumns.map((col) => (
           <Column
             key={col.id}
@@ -64,11 +64,11 @@ export const Board: React.FC<BoardProps> = ({
         ))}
 
         {/* Add New Column Container */}
-        <div className="w-80 shrink-0">
+        <div className="w-72 shrink-0">
           {isAddingCol ? (
             <form
               onSubmit={handleAddColumn}
-              className="p-3.5 rounded-2xl bg-[#0a1329]/90 border border-cyan-500/50 shadow-xl shadow-cyan-950/40 backdrop-blur-md"
+              className="p-3 rounded-xl bg-[#101214] border border-sky-500/60 shadow-2xl"
             >
               <input
                 autoFocus
@@ -76,22 +76,22 @@ export const Board: React.FC<BoardProps> = ({
                 placeholder="List title (e.g. Blocked, Testing)..."
                 value={newColTitle}
                 onChange={(e) => setNewColTitle(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-xl bg-blue-950/60 border border-blue-800/40 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                className="w-full px-3 py-1.5 text-xs rounded-lg bg-[#22272b] border border-[#384148] text-white placeholder-neutral-400 focus:outline-none focus:border-sky-500 transition-colors"
               />
-              <div className="flex items-center justify-end gap-2 mt-2.5">
+              <div className="flex items-center justify-end gap-2 mt-2">
                 <button
                   type="button"
                   onClick={() => {
                     setIsAddingCol(false);
                     setNewColTitle('');
                   }}
-                  className="p-1.5 text-slate-400 hover:text-white text-xs transition-colors"
+                  className="p-1 text-neutral-400 hover:text-white text-xs transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
                 <button
                   type="submit"
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-blue-600/30 transition-all"
+                  className="px-3 py-1 bg-[#0c66e4] hover:bg-[#0055cc] text-white rounded-lg text-xs font-semibold shadow transition-all"
                 >
                   Add List
                 </button>
@@ -100,7 +100,7 @@ export const Board: React.FC<BoardProps> = ({
           ) : (
             <button
               onClick={() => setIsAddingCol(true)}
-              className="w-full py-4 px-4 rounded-2xl border-2 border-dashed border-blue-900/40 hover:border-cyan-500/40 bg-blue-950/20 hover:bg-blue-950/40 text-slate-400 hover:text-cyan-300 text-sm font-semibold flex items-center justify-center gap-2 transition-all group"
+              className="w-full py-3 px-3.5 rounded-xl bg-white/15 hover:bg-white/20 backdrop-blur-xs text-white text-xs font-semibold flex items-center gap-2 transition-all shadow-sm group border border-white/10"
             >
               <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" />
               <span>Add another list</span>

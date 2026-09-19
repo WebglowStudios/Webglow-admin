@@ -22,6 +22,12 @@ export interface UserPresence {
   activeColumnId?: string | null;
 }
 
+export interface TagOption {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export interface KanbanCard {
   id: string;
   columnId: string;
@@ -40,6 +46,11 @@ export interface KanbanCard {
   order: number;
   createdAt: string;
   updatedAt: string;
+
+  // Multi-purpose Lead / Sales & CRM fields
+  phone?: string;
+  email?: string;
+  leadValue?: string;
 }
 
 export interface KanbanColumn {

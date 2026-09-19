@@ -13,7 +13,7 @@ interface UserIdentityModalProps {
 }
 
 const AVATAR_COLORS = [
-  '#3b82f6', // Blue
+  '#0c66e4', // Trello Blue
   '#06b6d4', // Cyan
   '#6366f1', // Indigo
   '#10b981', // Emerald
@@ -51,17 +51,17 @@ export const UserIdentityModal: React.FC<UserIdentityModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-150">
       <div
-        className="w-full max-w-md rounded-2xl bg-[#081129] border border-blue-800/60 shadow-2xl p-6 text-slate-200"
+        className="w-full max-w-md rounded-2xl bg-[#1d2125] border border-[#384148] shadow-2xl p-6 text-[#b6c2cf]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between pb-4 border-b border-blue-900/40">
+        <div className="flex items-center justify-between pb-4 border-b border-[#282e33]">
           <div className="flex items-center gap-2">
-            <User className="w-5 h-5 text-cyan-400" />
+            <User className="w-5 h-5 text-sky-400" />
             <h2 className="text-base font-bold text-white">Your Collaborator Profile</h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-blue-900/30 transition-colors"
+            className="p-1 rounded-lg text-neutral-400 hover:text-white hover:bg-[#282e33] transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -69,7 +69,7 @@ export const UserIdentityModal: React.FC<UserIdentityModalProps> = ({
 
         {/* Quick Agency Preset Personas */}
         <div className="mt-4">
-          <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-2">
+          <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wider block mb-2">
             Pick an Agency Persona (or customize below)
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -80,8 +80,8 @@ export const UserIdentityModal: React.FC<UserIdentityModalProps> = ({
                 onClick={() => handleSelectPreset(member)}
                 className={`flex items-center gap-2 p-2 rounded-xl border text-left transition-all ${
                   name === member.name
-                    ? 'bg-blue-900/40 border-cyan-400 text-white ring-1 ring-cyan-400/40'
-                    : 'bg-blue-950/20 border-blue-900/40 text-slate-400 hover:bg-blue-900/20 hover:text-white'
+                    ? 'bg-sky-950/40 border-sky-400 text-white ring-1 ring-sky-400/30'
+                    : 'bg-[#22272b] border-[#384148] text-neutral-400 hover:bg-[#282e33] hover:text-white'
                 }`}
               >
                 <div
@@ -91,8 +91,8 @@ export const UserIdentityModal: React.FC<UserIdentityModalProps> = ({
                   {member.name.charAt(0)}
                 </div>
                 <div className="min-w-0">
-                  <div className="text-xs font-semibold truncate">{member.name}</div>
-                  <div className="text-[10px] text-slate-500 truncate">{member.role}</div>
+                  <div className="text-xs font-semibold truncate text-white">{member.name}</div>
+                  <div className="text-[10px] text-neutral-400 truncate">{member.role}</div>
                 </div>
               </button>
             ))}
@@ -102,7 +102,7 @@ export const UserIdentityModal: React.FC<UserIdentityModalProps> = ({
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           {/* Custom Name */}
           <div>
-            <label className="text-xs font-medium text-slate-300 block mb-1">
+            <label className="text-xs font-medium text-neutral-300 block mb-1">
               Your Name
             </label>
             <input
@@ -111,13 +111,13 @@ export const UserIdentityModal: React.FC<UserIdentityModalProps> = ({
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Leo Vance"
               required
-              className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl bg-blue-950/60 border border-blue-800/50 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+              className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl bg-[#22272b] border border-[#384148] text-white placeholder-neutral-500 focus:outline-none focus:border-sky-400"
             />
           </div>
 
           {/* Role */}
           <div>
-            <label className="text-xs font-medium text-slate-300 block mb-1">
+            <label className="text-xs font-medium text-neutral-300 block mb-1">
               Agency Role
             </label>
             <input
@@ -125,13 +125,13 @@ export const UserIdentityModal: React.FC<UserIdentityModalProps> = ({
               value={role}
               onChange={(e) => setRole(e.target.value)}
               placeholder="e.g. Lead Designer"
-              className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl bg-blue-950/60 border border-blue-800/50 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+              className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl bg-[#22272b] border border-[#384148] text-white placeholder-neutral-500 focus:outline-none focus:border-sky-400"
             />
           </div>
 
           {/* Color Picker */}
           <div>
-            <label className="text-xs font-medium text-slate-300 block mb-2">
+            <label className="text-xs font-medium text-neutral-300 block mb-2">
               Avatar Color
             </label>
             <div className="flex items-center gap-2">
@@ -151,17 +151,17 @@ export const UserIdentityModal: React.FC<UserIdentityModalProps> = ({
             </div>
           </div>
 
-          <div className="pt-3 flex justify-end gap-2 border-t border-blue-900/40">
+          <div className="pt-3 flex justify-end gap-2 border-t border-[#282e33]">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs text-slate-400 hover:text-white transition-colors"
+              className="px-4 py-2 text-xs text-neutral-400 hover:text-white transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-semibold text-xs rounded-xl shadow-lg shadow-blue-600/30 transition-all"
+              className="px-5 py-2 bg-[#0c66e4] hover:bg-[#0055cc] text-white font-semibold text-xs rounded-xl shadow transition-all"
             >
               Save Profile
             </button>

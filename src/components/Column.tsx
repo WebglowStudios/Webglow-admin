@@ -46,7 +46,6 @@ export const Column: React.FC<ColumnProps> = ({
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
-    // Only deactivate if leaving column container
     if (!e.currentTarget.contains(e.relatedTarget as Node)) {
       setIsOver(false);
     }
@@ -74,23 +73,23 @@ export const Column: React.FC<ColumnProps> = ({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className={`flex flex-col w-80 shrink-0 rounded-2xl bg-[#0a1329]/80 border backdrop-blur-md transition-all duration-200 ${
+      className={`flex flex-col w-72 shrink-0 rounded-xl bg-[#101214] border border-[#22272b] shadow-xl transition-all duration-150 ${
         isOver
-          ? 'border-cyan-400/80 bg-blue-950/60 shadow-xl shadow-cyan-950/40 ring-2 ring-cyan-400/20'
-          : 'border-blue-900/30'
+          ? 'border-sky-400/80 bg-[#161a1d] ring-2 ring-sky-400/30'
+          : 'hover:border-[#384148]'
       }`}
     >
-      {/* Column Header */}
-      <div className="flex items-center justify-between p-3.5 border-b border-blue-900/20">
-        <div className="flex items-center gap-2">
+      {/* Column Header (Trello style) */}
+      <div className="flex items-center justify-between px-3 py-2.5">
+        <div className="flex items-center gap-2 min-w-0">
           <span
-            className="w-2.5 h-2.5 rounded-full shadow-sm"
-            style={{ backgroundColor: column.colorDot || '#3b82f6' }}
+            className="w-2 h-2 rounded-full shrink-0"
+            style={{ backgroundColor: column.colorDot || '#388bff' }}
           />
-          <h2 className="text-sm font-bold text-slate-200 tracking-wide">
+          <h2 className="text-sm font-semibold text-neutral-200 truncate">
             {column.title}
           </h2>
-          <span className="px-2 py-0.5 rounded-full bg-blue-950 text-blue-300 text-[11px] font-semibold border border-blue-800/40">
+          <span className="text-xs text-neutral-400 font-normal">
             {columnCards.length}
           </span>
         </div>
@@ -98,14 +97,14 @@ export const Column: React.FC<ColumnProps> = ({
         <div className="relative">
           <button
             onClick={() => setShowColMenu(!showColMenu)}
-            className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-blue-900/30 transition-colors"
+            className="p-1 rounded-md text-neutral-400 hover:text-white hover:bg-[#22272b] transition-colors"
           >
             <MoreHorizontal className="w-4 h-4" />
           </button>
 
           {showColMenu && (
             <div
-              className="absolute right-0 top-full mt-1 w-40 rounded-lg bg-[#070e22] border border-blue-800/60 shadow-xl py-1 z-30 text-xs"
+              className="absolute right-0 top-full mt-1 w-40 rounded-lg bg-[#1d2125] border border-[#384148] shadow-2xl py-1 z-30 text-xs text-neutral-200"
               onClick={(e) => e.stopPropagation()}
             >
               <button
@@ -124,7 +123,7 @@ export const Column: React.FC<ColumnProps> = ({
       </div>
 
       {/* Cards Scrollable Container */}
-      <div className="flex-1 p-2.5 space-y-2.5 overflow-y-auto max-h-[calc(100vh-270px)] min-h-[140px]">
+      <div className="flex-1 px-2 pb-2 space-y-2 overflow-y-auto max-h-[calc(100vh-230px)] min-h-[80px]">
         {columnCards.map((card) => (
           <CardItem
             key={card.id}
@@ -139,9 +138,8 @@ export const Column: React.FC<ColumnProps> = ({
         ))}
 
         {columnCards.length === 0 && !isAddingCard && (
-          <div className="flex flex-col items-center justify-center h-28 border border-dashed border-blue-900/40 rounded-xl text-slate-500 text-xs text-center p-3">
+          <div className="flex flex-col items-center justify-center h-20 border border-dashed border-[#22272b] rounded-lg text-neutral-500 text-xs text-center p-2">
             <span>Drop cards here</span>
-            <span className="text-[10px] text-slate-600 mt-1">or add a new task below</span>
           </div>
         )}
 
@@ -149,12 +147,12 @@ export const Column: React.FC<ColumnProps> = ({
         {isAddingCard && (
           <form
             onSubmit={handleCreateCard}
-            className="p-3 rounded-xl bg-[#0e1b3d] border border-cyan-500/40 shadow-lg shadow-cyan-950/40"
+            className="p-2 rounded-lg bg-[#22272b] border border-sky-500 shadow-md"
           >
             <textarea
               autoFocus
               rows={2}
-              placeholder="Enter card title or task description..."
+              placeholder="Enter a title for this card..."
               value={newCardTitle}
               onChange={(e) => setNewCardTitle(e.target.value)}
               onKeyDown={(e) => {
@@ -163,40 +161,40 @@ export const Column: React.FC<ColumnProps> = ({
                   handleCreateCard(e);
                 }
               }}
-              className="w-full p-2 text-xs rounded-lg bg-blue-950/60 border border-blue-800/40 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-400 resize-none"
+              className="w-full p-1.5 text-xs rounded bg-[#101214] border border-[#384148] text-white placeholder-neutral-400 focus:outline-none focus:border-sky-400 resize-none transition-colors"
             />
-            <div className="flex items-center justify-end gap-2 mt-2">
+            <div className="flex items-center justify-end gap-1.5 mt-2">
               <button
                 type="button"
                 onClick={() => {
                   setIsAddingCard(false);
                   setNewCardTitle('');
                 }}
-                className="p-1.5 text-slate-400 hover:text-white text-xs transition-colors"
+                className="p-1 text-neutral-400 hover:text-white text-xs transition-colors"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </button>
               <button
                 type="submit"
-                className="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-medium flex items-center gap-1 shadow-md shadow-cyan-600/30 transition-all"
+                className="px-3 py-1 bg-[#0c66e4] hover:bg-[#0055cc] text-white rounded text-xs font-semibold flex items-center gap-1 shadow transition-all"
               >
-                <Check className="w-3 h-3" />
-                <span>Add</span>
+                <Check className="w-3.5 h-3.5" />
+                <span>Add Card</span>
               </button>
             </div>
           </form>
         )}
       </div>
 
-      {/* Column Footer: Add Card Button */}
+      {/* Column Footer: Add Card Button (Trello style) */}
       {!isAddingCard && (
-        <div className="p-2.5 pt-0">
+        <div className="px-2 pb-2">
           <button
             onClick={() => setIsAddingCard(true)}
-            className="w-full py-2 px-3 rounded-xl text-xs font-medium text-slate-400 hover:text-cyan-300 hover:bg-blue-900/30 border border-transparent hover:border-blue-700/40 flex items-center justify-center gap-1.5 transition-all"
+            className="w-full py-1.5 px-2 rounded-lg text-xs font-medium text-neutral-400 hover:text-white hover:bg-[#22272b] flex items-center gap-1.5 transition-all text-left"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add Card</span>
+            <Plus className="w-4 h-4" />
+            <span>Add a card</span>
           </button>
         </div>
       )}

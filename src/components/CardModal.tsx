@@ -3,16 +3,17 @@
 import React, { useState } from 'react';
 import {
   X,
-  Tag,
   CheckSquare,
   Users,
   Trash2,
   Layers,
   Plus,
   Check,
+  Phone,
 } from 'lucide-react';
 import { KanbanCard, KanbanColumn, Priority, CardTag } from '../types/kanban';
-import { INITIAL_TAGS, AGENCY_MEMBERS } from '../lib/mockData';
+import { AGENCY_MEMBERS } from '../lib/mockData';
+import { TagDropdownSelector } from './TagDropdownSelector';
 
 interface CardModalProps {
   card: KanbanCard | null;
@@ -50,6 +51,11 @@ const CardModalContent: React.FC<CardModalContentProps> = ({
   const [assignees, setAssignees] = useState<KanbanCard['assignees']>(card.assignees || []);
   const [newChecklistText, setNewChecklistText] = useState('');
 
+  // Lead / Sales fields
+  const [phone, setPhone] = useState(card.phone || '');
+  const [email, setEmail] = useState(card.email || '');
+  const [leadValue, setLeadValue] = useState(card.leadValue || '');
+
   const handleSave = (customUpdates: Partial<KanbanCard> = {}) => {
     const updated: KanbanCard = {
       ...card,
@@ -61,6 +67,9 @@ const CardModalContent: React.FC<CardModalContentProps> = ({
       tags,
       checklist,
       assignees,
+      phone: phone.trim() || undefined,
+      email: email.trim() || undefined,
+      leadValue: leadValue.trim() || undefined,
       updatedAt: new Date().toISOString(),
       ...customUpdates,
     };
@@ -117,25 +126,33 @@ const CardModalContent: React.FC<CardModalContentProps> = ({
 
   const checklistDone = checklist.filter((c) => c.completed).length;
 
+  // DNP 6 (6th unanswered call attempt)
+  const hasDnp6 = tags.some(
+    (t) =>
+      t.id === 'tag-dnp-6' ||
+      t.name.toLowerCase().includes('dnp 6') ||
+      t.name.toLowerCase().includes('dnp6')
+  );
+
   return (
     <div
-      className="relative w-full max-w-3xl max-h-[90vh] flex flex-col rounded-2xl bg-[#081129] border border-blue-800/60 shadow-2xl shadow-blue-950 overflow-hidden"
+      className="relative w-full max-w-3xl max-h-[90vh] flex flex-col rounded-2xl bg-[#1d2125] border border-[#384148] shadow-2xl shadow-black/80 overflow-hidden text-[#b6c2cf]"
       onClick={(e) => e.stopPropagation()}
     >
       {/* Top Modal Bar */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-blue-900/40 bg-[#060b18]/60">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-[#282e33] bg-[#161a1d]">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-cyan-400 uppercase tracking-wider">
+          <span className="text-xs font-semibold text-sky-400 uppercase tracking-wider">
             Card Details
           </span>
-          <span className="text-slate-600">&bull;</span>
+          <span className="text-neutral-500">&bull;</span>
           <select
             value={columnId}
             onChange={(e) => {
               setColumnId(e.target.value);
               handleSave({ columnId: e.target.value });
             }}
-            className="bg-blue-950/60 border border-blue-800/40 text-slate-200 text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-cyan-400"
+            className="bg-[#22272b] border border-[#384148] text-white text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-sky-400"
           >
             {columns.map((col) => (
               <option key={col.id} value={col.id}>
@@ -147,14 +164,40 @@ const CardModalContent: React.FC<CardModalContentProps> = ({
 
         <button
           onClick={onClose}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-blue-900/30 transition-colors"
+          className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-[#282e33] transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
       </div>
 
       {/* Modal Content Scrollable Area */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto p-6 space-y-5">
+        {/* DNP 6 Exhausted Lead Alert & Instant Delete */}
+        {hasDnp6 && (
+          <div className="flex items-center justify-between p-3 rounded-xl bg-red-950/40 border border-red-500/50 text-red-200 text-xs shadow-md animate-in fade-in duration-150">
+            <div className="flex items-center gap-2.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+              <div>
+                <span className="font-bold text-white">DNP 6 Limit Reached:</span>{' '}
+                6 unanswered calls. This lead is exhausted and eligible for deletion.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm(`Delete exhausted lead "${card.title}" (DNP 6)?`)) {
+                  onDeleteCard(card.id);
+                  onClose();
+                }
+              }}
+              className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white font-semibold rounded-lg text-xs flex items-center gap-1.5 shadow transition-all shrink-0 ml-3"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete Lead</span>
+            </button>
+          </div>
+        )}
+
         {/* Card Title Input */}
         <div>
           <input
@@ -162,16 +205,16 @@ const CardModalContent: React.FC<CardModalContentProps> = ({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onBlur={handleTitleBlur}
-            placeholder="Task Title"
-            className="w-full text-xl font-bold bg-transparent text-white border-b border-transparent hover:border-blue-800/40 focus:border-cyan-400 focus:outline-none pb-1 transition-colors"
+            placeholder="Lead or Task Title (e.g. John Doe, Production Update)"
+            className="w-full text-xl font-bold bg-transparent text-white border-b border-transparent hover:border-[#384148] focus:border-sky-400 focus:outline-none pb-1 transition-colors"
           />
         </div>
 
         {/* Quick Properties Strip */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-3.5 rounded-xl bg-blue-950/40 border border-blue-900/40">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-3.5 rounded-xl bg-[#22272b]/80 border border-[#282e33]">
           {/* Priority Select */}
           <div>
-            <label className="text-[11px] font-medium text-slate-400 uppercase tracking-wider block mb-1">
+            <label className="text-[11px] font-medium text-neutral-400 uppercase tracking-wider block mb-1">
               Priority
             </label>
             <select
@@ -181,7 +224,7 @@ const CardModalContent: React.FC<CardModalContentProps> = ({
                 setPriority(p);
                 handleSave({ priority: p });
               }}
-              className="w-full bg-[#081129] border border-blue-800/50 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-cyan-400 capitalize"
+              className="w-full bg-[#161a1d] border border-[#384148] text-white text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-sky-400 capitalize"
             >
               {PRIORITIES.map((p) => (
                 <option key={p} value={p}>
@@ -193,8 +236,8 @@ const CardModalContent: React.FC<CardModalContentProps> = ({
 
           {/* Due Date */}
           <div>
-            <label className="text-[11px] font-medium text-slate-400 uppercase tracking-wider block mb-1">
-              Due Date
+            <label className="text-[11px] font-medium text-neutral-400 uppercase tracking-wider block mb-1">
+              Due Date / Follow-up
             </label>
             <input
               type="date"
@@ -203,14 +246,14 @@ const CardModalContent: React.FC<CardModalContentProps> = ({
                 setDueDate(e.target.value);
                 handleSave({ dueDate: e.target.value });
               }}
-              className="w-full bg-[#081129] border border-blue-800/50 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-cyan-400"
+              className="w-full bg-[#161a1d] border border-[#384148] text-white text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-sky-400"
             />
           </div>
 
           {/* Assignees Count */}
           <div>
-            <label className="text-[11px] font-medium text-slate-400 uppercase tracking-wider block mb-1">
-              Assignees
+            <label className="text-[11px] font-medium text-neutral-400 uppercase tracking-wider block mb-1">
+              Assignee / Owner
             </label>
             <div className="flex items-center gap-1">
               {assignees.map((a) => (
@@ -218,76 +261,131 @@ const CardModalContent: React.FC<CardModalContentProps> = ({
                   key={a.id}
                   title={a.name}
                   style={{ backgroundColor: a.avatarColor }}
-                  className="w-6 h-6 rounded-full text-[10px] font-bold text-white flex items-center justify-center ring-1 ring-blue-900"
+                  className="w-6 h-6 rounded-full text-[10px] font-bold text-white flex items-center justify-center ring-1 ring-[#161a1d]"
                 >
                   {a.name.charAt(0)}
                 </div>
               ))}
               {assignees.length === 0 && (
-                <span className="text-xs text-slate-500">None</span>
+                <span className="text-xs text-neutral-500">Unassigned</span>
               )}
             </div>
           </div>
 
           {/* Card ID / Created */}
           <div>
-            <label className="text-[11px] font-medium text-slate-400 uppercase tracking-wider block mb-1">
+            <label className="text-[11px] font-medium text-neutral-400 uppercase tracking-wider block mb-1">
               Created
             </label>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-neutral-400">
               {new Date(card.createdAt).toLocaleDateString()}
             </span>
           </div>
         </div>
 
+        {/* Lead & Sales Information (Multi-purpose) */}
+        <div className="p-3.5 rounded-xl bg-[#22272b]/80 border border-[#282e33]">
+          <div className="flex items-center gap-1.5 mb-2.5 text-xs font-semibold text-neutral-300 uppercase tracking-wider">
+            <Phone className="w-4 h-4 text-emerald-400" />
+            <span>Lead & Sales Details (Optional)</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Phone */}
+            <div>
+              <label className="text-[11px] font-medium text-neutral-400 block mb-1">
+                Phone Number / WhatsApp
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="+1 (555) 000-0000"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  onBlur={() => handleSave()}
+                  className="w-full px-2.5 py-1.5 rounded-lg bg-[#161a1d] border border-[#384148] text-white placeholder-neutral-500 text-xs focus:outline-none focus:border-sky-400"
+                />
+                {phone && (
+                  <a
+                    href={`tel:${phone}`}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-emerald-400 hover:underline text-[10px] font-medium"
+                    title="Click to call"
+                  >
+                    Call
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* Email / Social Handle */}
+            <div>
+              <label className="text-[11px] font-medium text-neutral-400 block mb-1">
+                Email / Social Handle
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="contact@lead.com or @insta"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onBlur={() => handleSave()}
+                  className="w-full px-2.5 py-1.5 rounded-lg bg-[#161a1d] border border-[#384148] text-white placeholder-neutral-500 text-xs focus:outline-none focus:border-sky-400"
+                />
+                {email && email.includes('@') && (
+                  <a
+                    href={`mailto:${email}`}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-sky-400 hover:underline text-[10px] font-medium"
+                  >
+                    Email
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* Deal / Lead Value */}
+            <div>
+              <label className="text-[11px] font-medium text-neutral-400 block mb-1">
+                Deal / Lead Value
+              </label>
+              <input
+                type="text"
+                placeholder="$2,500"
+                value={leadValue}
+                onChange={(e) => setLeadValue(e.target.value)}
+                onBlur={() => handleSave()}
+                className="w-full px-2.5 py-1.5 rounded-lg bg-[#161a1d] border border-[#384148] text-white placeholder-neutral-500 text-xs focus:outline-none focus:border-sky-400"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Dynamic Tags & Status Dropdown Selector */}
+        <TagDropdownSelector
+          selectedTags={tags}
+          onToggleTag={handleToggleTag}
+        />
+
         {/* Description Section */}
         <div>
-          <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5 mb-2">
-            <Layers className="w-4 h-4 text-cyan-400" />
-            <span>Description</span>
+          <label className="text-xs font-semibold text-neutral-300 uppercase tracking-wider flex items-center gap-1.5 mb-2">
+            <Layers className="w-4 h-4 text-sky-400" />
+            <span>Notes & Context</span>
           </label>
           <textarea
-            rows={4}
+            rows={3}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             onBlur={() => handleSave()}
-            placeholder="Add more context, requirements, links, or notes for this task..."
-            className="w-full p-3 rounded-xl bg-blue-950/40 border border-blue-900/40 text-slate-200 text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-400 resize-none transition-colors"
+            placeholder="Add lead history, meeting notes, project requirements, or links..."
+            className="w-full p-3 rounded-xl bg-[#22272b] border border-[#384148] text-white text-sm placeholder-neutral-500 focus:outline-none focus:border-sky-400 resize-none transition-colors"
           />
-        </div>
-
-        {/* Tags Selection Section */}
-        <div>
-          <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5 mb-2">
-            <Tag className="w-4 h-4 text-blue-400" />
-            <span>Tags</span>
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {INITIAL_TAGS.map((tag) => {
-              const isSelected = tags.some((t) => t.id === tag.id);
-              return (
-                <button
-                  key={tag.id}
-                  type="button"
-                  onClick={() => handleToggleTag(tag)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
-                    isSelected
-                      ? `${tag.color} ring-1 ring-cyan-400/40`
-                      : 'bg-blue-950/30 border-blue-900/40 text-slate-400 hover:text-white'
-                  }`}
-                >
-                  {tag.name} {isSelected && '✓'}
-                </button>
-              );
-            })}
-          </div>
         </div>
 
         {/* Assignee Members Selection */}
         <div>
-          <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5 mb-2">
+          <label className="text-xs font-semibold text-neutral-300 uppercase tracking-wider flex items-center gap-1.5 mb-2">
             <Users className="w-4 h-4 text-indigo-400" />
-            <span>Agency Team Members</span>
+            <span>Team Members</span>
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
             {AGENCY_MEMBERS.map((member) => {
@@ -299,8 +397,8 @@ const CardModalContent: React.FC<CardModalContentProps> = ({
                   onClick={() => handleToggleAssignee(member)}
                   className={`flex items-center gap-2.5 p-2 rounded-xl border text-left transition-all ${
                     isAssigned
-                      ? 'bg-blue-900/30 border-cyan-500/50 text-white ring-1 ring-cyan-500/20'
-                      : 'bg-blue-950/20 border-blue-900/40 text-slate-400 hover:text-white hover:bg-blue-900/20'
+                      ? 'bg-sky-950/40 border-sky-400 text-white ring-1 ring-sky-400/30'
+                      : 'bg-[#22272b] border-[#384148] text-neutral-400 hover:text-white hover:bg-[#282e33]'
                   }`}
                 >
                   <div
@@ -310,10 +408,10 @@ const CardModalContent: React.FC<CardModalContentProps> = ({
                     {member.name.charAt(0)}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-xs font-semibold truncate">{member.name}</div>
-                    <div className="text-[10px] text-slate-500 truncate">{member.role}</div>
+                    <div className="text-xs font-semibold truncate text-white">{member.name}</div>
+                    <div className="text-[10px] text-neutral-400 truncate">{member.role}</div>
                   </div>
-                  {isAssigned && <Check className="w-4 h-4 text-cyan-400 shrink-0" />}
+                  {isAssigned && <Check className="w-4 h-4 text-sky-400 shrink-0" />}
                 </button>
               );
             })}
@@ -323,12 +421,12 @@ const CardModalContent: React.FC<CardModalContentProps> = ({
         {/* Checklist Section */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+            <label className="text-xs font-semibold text-neutral-300 uppercase tracking-wider flex items-center gap-1.5">
               <CheckSquare className="w-4 h-4 text-emerald-400" />
-              <span>Checklist</span>
+              <span>Checklist & Action Items</span>
             </label>
             {checklist.length > 0 && (
-              <span className="text-xs text-slate-400 font-mono">
+              <span className="text-xs text-neutral-400 font-mono">
                 {checklistDone} / {checklist.length} completed
               </span>
             )}
@@ -336,7 +434,7 @@ const CardModalContent: React.FC<CardModalContentProps> = ({
 
           {/* Checklist Progress Bar */}
           {checklist.length > 0 && (
-            <div className="w-full bg-blue-950 rounded-full h-1.5 mb-3 overflow-hidden">
+            <div className="w-full bg-[#161a1d] rounded-full h-1.5 mb-3 overflow-hidden">
               <div
                 className="bg-emerald-400 h-full rounded-full transition-all duration-300"
                 style={{
@@ -351,17 +449,17 @@ const CardModalContent: React.FC<CardModalContentProps> = ({
             {checklist.map((item) => (
               <div
                 key={item.id}
-                className="group flex items-center gap-2.5 p-2 rounded-lg bg-blue-950/30 border border-blue-900/30 hover:border-blue-800/60 transition-colors"
+                className="group flex items-center gap-2.5 p-2 rounded-lg bg-[#22272b] border border-[#282e33] hover:border-[#384148] transition-colors"
               >
                 <input
                   type="checkbox"
                   checked={item.completed}
                   onChange={() => handleToggleChecklistItem(item.id)}
-                  className="w-4 h-4 rounded border-blue-700 bg-blue-950 text-cyan-500 focus:ring-cyan-400 cursor-pointer"
+                  className="w-4 h-4 rounded border-[#384148] bg-[#161a1d] text-emerald-500 focus:ring-emerald-400 cursor-pointer"
                 />
                 <span
-                  className={`flex-1 text-xs text-slate-200 leading-snug ${
-                    item.completed ? 'line-through text-slate-500' : ''
+                  className={`flex-1 text-xs text-neutral-200 leading-snug ${
+                    item.completed ? 'line-through text-neutral-500' : ''
                   }`}
                 >
                   {item.text}
@@ -369,7 +467,7 @@ const CardModalContent: React.FC<CardModalContentProps> = ({
                 <button
                   type="button"
                   onClick={() => handleDeleteChecklistItem(item.id)}
-                  className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-rose-400 transition-opacity"
+                  className="opacity-0 group-hover:opacity-100 p-1 text-neutral-400 hover:text-rose-400 transition-opacity"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -384,11 +482,11 @@ const CardModalContent: React.FC<CardModalContentProps> = ({
               placeholder="Add an item to the checklist..."
               value={newChecklistText}
               onChange={(e) => setNewChecklistText(e.target.value)}
-              className="flex-1 px-3 py-1.5 text-xs rounded-xl bg-blue-950/50 border border-blue-900/40 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+              className="flex-1 px-3 py-1.5 text-xs rounded-xl bg-[#22272b] border border-[#384148] text-white placeholder-neutral-400 focus:outline-none focus:border-sky-400 transition-colors"
             />
             <button
               type="submit"
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1 shadow transition-all"
+              className="px-3 py-1.5 bg-[#0c66e4] hover:bg-[#0055cc] text-white rounded-xl text-xs font-semibold flex items-center gap-1 shadow transition-all"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Add</span>
@@ -398,7 +496,7 @@ const CardModalContent: React.FC<CardModalContentProps> = ({
       </div>
 
       {/* Modal Footer Actions */}
-      <div className="flex items-center justify-between px-6 py-4 border-t border-blue-900/40 bg-[#060b18]/60">
+      <div className="flex items-center justify-between px-6 py-4 border-t border-[#282e33] bg-[#161a1d]">
         <button
           type="button"
           onClick={() => {
@@ -416,7 +514,7 @@ const CardModalContent: React.FC<CardModalContentProps> = ({
         <button
           type="button"
           onClick={onClose}
-          className="px-5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-cyan-600/25 transition-all"
+          className="px-5 py-1.5 bg-[#0c66e4] hover:bg-[#0055cc] text-white rounded-xl text-xs font-semibold shadow transition-all"
         >
           Done
         </button>

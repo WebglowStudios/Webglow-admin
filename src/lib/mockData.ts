@@ -9,6 +9,22 @@ export const INITIAL_TAGS: CardTag[] = [
   { id: 'tag-6', name: 'Urgent Bug', color: 'bg-rose-500/20 text-rose-300 border-rose-500/40' },
 ];
 
+export const DEFAULT_TAG_OPTIONS: CardTag[] = [
+  ...INITIAL_TAGS,
+  { id: 'tag-lead-new', name: 'New Lead', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' },
+  { id: 'tag-lead-dm', name: 'DM Sent', color: 'bg-sky-500/20 text-sky-300 border-sky-500/40' },
+  { id: 'tag-lead-call', name: 'Call Booked', color: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40' },
+  { id: 'tag-lead-followup', name: 'Follow Up', color: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
+  { id: 'tag-lead-closed', name: 'Closed Won', color: 'bg-teal-500/20 text-teal-300 border-teal-500/40' },
+  // Call Statuses (DNP - Did Not Pick)
+  { id: 'tag-dnp-1', name: 'DNP 1', color: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
+  { id: 'tag-dnp-2', name: 'DNP 2', color: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
+  { id: 'tag-dnp-3', name: 'DNP 3', color: 'bg-orange-500/20 text-orange-300 border-orange-500/40' },
+  { id: 'tag-dnp-4', name: 'DNP 4', color: 'bg-orange-500/20 text-orange-300 border-orange-500/40' },
+  { id: 'tag-dnp-5', name: 'DNP 5', color: 'bg-rose-500/20 text-rose-300 border-rose-500/40' },
+  { id: 'tag-dnp-6', name: 'DNP 6 (Exhausted)', color: 'bg-red-500/25 text-red-300 border-red-500/50' },
+];
+
 export const AGENCY_MEMBERS = [
   { id: 'user-1', name: 'Leo Vance', role: 'Lead Architect', avatarColor: '#3b82f6' },
   { id: 'user-2', name: 'Elena Rostova', role: 'UI/UX Director', avatarColor: '#06b6d4' },

@@ -11,6 +11,11 @@ import { UserIdentityModal } from '../components/UserIdentityModal';
 import { SupabaseSetupModal } from '../components/SupabaseSetupModal';
 import { KanbanCard } from '../types/kanban';
 
+// Default evening river ghats background resembling the screenshot
+const DEFAULT_WALLPAPER =
+  'https://images.unsplash.com/photo-1561361513-2d000a50f0dc?q=80&w=2076&auto=format&fit=crop';
+const STORAGE_KEY_WALLPAPER = 'webglow_local_wallpaper_v1';
+
 export default function Home() {
   const {
     columns,
@@ -39,6 +44,33 @@ export default function Home() {
   const [isIdentityOpen, setIsIdentityOpen] = useState(false);
   const [isSetupOpen, setIsSetupOpen] = useState(false);
 
+  // Local-only wallpaper background state (saved only in browser localStorage)
+  const [wallpaper, setWallpaper] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(STORAGE_KEY_WALLPAPER);
+      if (saved) return saved;
+    }
+    return DEFAULT_WALLPAPER;
+  });
+
+  const handleUploadWallpaper = (dataUrl: string) => {
+    setWallpaper(dataUrl);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(STORAGE_KEY_WALLPAPER, dataUrl);
+      } catch (err) {
+        console.warn('Could not save wallpaper to localStorage', err);
+      }
+    }
+  };
+
+  const handleResetWallpaper = () => {
+    setWallpaper(DEFAULT_WALLPAPER);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(STORAGE_KEY_WALLPAPER);
+    }
+  };
+
   const handleCardClick = (card: KanbanCard) => {
     setSelectedCard(card);
     setCardViewing(card.id);
@@ -55,13 +87,12 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#060b18] text-slate-100 selection:bg-cyan-500/30 selection:text-cyan-200">
-      {/* Dynamic Bluish Background Glow Orbs */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute -top-40 left-1/4 w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[140px]" />
-        <div className="absolute top-1/3 -right-40 w-[500px] h-[500px] bg-cyan-600/10 rounded-full blur-[140px]" />
-        <div className="absolute -bottom-40 left-1/3 w-[700px] h-[700px] bg-indigo-600/10 rounded-full blur-[160px]" />
-      </div>
+    <div
+      className="min-h-screen flex flex-col relative bg-cover bg-center bg-no-repeat bg-fixed text-[#b6c2cf] selection:bg-sky-500/30 selection:text-sky-200"
+      style={{ backgroundImage: `url("${wallpaper}")` }}
+    >
+      {/* Dark Ambient Overlay over wallpaper for Trello list readability */}
+      <div className="fixed inset-0 bg-black/40 pointer-events-none z-0" />
 
       <div className="relative z-10 flex flex-col flex-1 min-h-screen">
         {/* Navigation & Live Collaborators Header */}
@@ -76,6 +107,9 @@ export default function Home() {
           onToggleActivityDrawer={() => setIsActivityOpen(!isActivityOpen)}
           onOpenSetupModal={() => setIsSetupOpen(true)}
           onResetBoard={resetToDemoData}
+          onUploadWallpaper={handleUploadWallpaper}
+          onResetWallpaper={handleResetWallpaper}
+          currentWallpaper={wallpaper}
         />
 
         {/* Agency Metrics & Stats Bar */}

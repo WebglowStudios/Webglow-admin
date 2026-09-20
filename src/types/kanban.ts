@@ -89,11 +89,11 @@ export interface DailyWorkLog {
   date: string; // YYYY-MM-DD
   isPresent: boolean; // Are you present / willing to work today?
   hoursWorked: number; // Hours of effort put in
-  tasksDone: string; // What did you do?
+  tasksDone: string; // What did you do today?
   dmsSent: number; // Number of DMs sent
   callsDone: number; // Number of calls done
-  clientsCount: number; // Number of clients had / handled
-  outcome: string; // Outcome & Results
+  clientsCount?: number; // Optional legacy field
+  outcome?: string; // Optional legacy field
   createdAt: string;
 }
 
@@ -122,6 +122,7 @@ export interface ClientRecord {
   services: string;
   revenueCollected: number;
   monthlyRetainer?: number;
+  closedDate?: string; // YYYY-MM-DD - Date the client was closed
   contactName?: string;
   contactEmail?: string;
   contactPhone?: string;

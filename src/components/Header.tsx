@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { UserPresence, BoardFilter, Priority } from '../types/kanban';
 import { DEFAULT_TAG_OPTIONS } from '../lib/mockData';
+import { getStoredTeamMembers, TEAM_UPDATED_EVENT } from '../lib/teamMembers';
 
 interface HeaderProps {
   currentUser: UserPresence;
@@ -53,10 +54,22 @@ export const Header: React.FC<HeaderProps> = ({
   const [showBgMenu, setShowBgMenu] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Combine active users ensuring current user is present
+  const [teamMemberIds, setTeamMemberIds] = useState<Set<string>>(
+    () => new Set(getStoredTeamMembers().map((m) => m.id))
+  );
+
+  React.useEffect(() => {
+    const handleUpdate = () => {
+      setTeamMemberIds(new Set(getStoredTeamMembers().map((m) => m.id)));
+    };
+    window.addEventListener(TEAM_UPDATED_EVENT, handleUpdate);
+    return () => window.removeEventListener(TEAM_UPDATED_EVENT, handleUpdate);
+  }, []);
+
+  // Combine active users ensuring current user is present and deleted members vanish
   const allOnline = [
     currentUser,
-    ...activeUsers.filter((u) => u.id !== currentUser.id),
+    ...activeUsers.filter((u) => u.id !== currentUser.id && teamMemberIds.has(u.id)),
   ];
 
   const handleCopyLink = () => {

@@ -7,6 +7,23 @@ const STORAGE_KEY_CARDS = 'webglow_kanban_cards_v1';
 const STORAGE_KEY_USER = 'webglow_kanban_user_v1';
 export const TEAM_UPDATED_EVENT = 'webglow_team_updated';
 
+// Multi-tab synchronization: notify local tab if another tab changes team members in localStorage
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (
+      event.key === STORAGE_KEY_TEAM_MEMBERS ||
+      event.key === STORAGE_KEY_WORK_LOGS ||
+      event.key === STORAGE_KEY_CARDS
+    ) {
+      window.dispatchEvent(
+        new CustomEvent(TEAM_UPDATED_EVENT, {
+          detail: { action: 'sync', members: getStoredTeamMembers() },
+        })
+      );
+    }
+  });
+}
+
 /**
  * Retrieve team members from localStorage or fall back to default presets
  */
@@ -30,13 +47,17 @@ export function getStoredTeamMembers(): AgencyMember[] {
 /**
  * Persist team members list and notify all subscribers
  */
-export function saveStoredTeamMembers(members: AgencyMember[]): void {
+export function saveStoredTeamMembers(
+  members: AgencyMember[],
+  action: 'update' | 'add' | 'delete' = 'update',
+  memberId?: string
+): void {
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem(STORAGE_KEY_TEAM_MEMBERS, JSON.stringify(members));
       window.dispatchEvent(
         new CustomEvent(TEAM_UPDATED_EVENT, {
-          detail: { members },
+          detail: { members, action, memberId },
         })
       );
     } catch (err) {
@@ -50,23 +71,22 @@ export function saveStoredTeamMembers(members: AgencyMember[]): void {
  */
 export function addStoredTeamMember(member: AgencyMember): AgencyMember[] {
   const current = getStoredTeamMembers();
-  // Prevent duplicate ids
   const updated = [...current.filter((m) => m.id !== member.id), member];
-  saveStoredTeamMembers(updated);
+  saveStoredTeamMembers(updated, 'add', member.id);
   return updated;
 }
 
 /**
- * Delete a team member and cleanly cascade:
+ * Delete a team member and cleanly cascade everywhere:
  * 1. Remove from team members list
  * 2. Purge their daily work logs from localStorage
- * 3. Unassign them from any Kanban cards
+ * 3. Unassign them from any Kanban cards in localStorage
  * 4. Switch current user persona if the deleted member was active
+ * 5. Broadcast TEAM_UPDATED_EVENT with memberId
  */
 export function deleteStoredTeamMember(memberId: string): AgencyMember[] {
   const current = getStoredTeamMembers();
   const updated = current.filter((m) => m.id !== memberId);
-  saveStoredTeamMembers(updated);
 
   if (typeof window !== 'undefined') {
     // 1. Clean up associated work logs
@@ -123,5 +143,6 @@ export function deleteStoredTeamMember(memberId: string): AgencyMember[] {
     }
   }
 
+  saveStoredTeamMembers(updated, 'delete', memberId);
   return updated;
 }

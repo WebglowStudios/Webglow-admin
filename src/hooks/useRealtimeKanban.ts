@@ -12,7 +12,11 @@ import {
   INITIAL_CARDS,
   INITIAL_COLUMNS,
 } from '../lib/mockData';
-import { getStoredTeamMembers, TEAM_UPDATED_EVENT } from '../lib/teamMembers';
+import {
+  getStoredTeamMembers,
+  deleteStoredTeamMember,
+  TEAM_UPDATED_EVENT,
+} from '../lib/teamMembers';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -122,30 +126,6 @@ export function useRealtimeKanban() {
     }
   }, [currentUser]);
 
-  // Synchronize cards and currentUser when team members are updated or deleted
-  useEffect(() => {
-    const handleTeamUpdate = () => {
-      if (typeof window !== 'undefined') {
-        const savedCards = localStorage.getItem(STORAGE_KEY_CARDS);
-        if (savedCards) {
-          try {
-            setCards(JSON.parse(savedCards));
-          } catch {}
-        }
-        const savedUser = localStorage.getItem(STORAGE_KEY_USER);
-        if (savedUser) {
-          try {
-            setCurrentUser(JSON.parse(savedUser));
-          } catch {}
-        }
-      }
-    };
-    window.addEventListener(TEAM_UPDATED_EVENT, handleTeamUpdate);
-    return () => {
-      window.removeEventListener(TEAM_UPDATED_EVENT, handleTeamUpdate);
-    };
-  }, []);
-
   // Broadcast helper (BroadcastChannel + Supabase)
   const broadcastEvent = useCallback(
     (type: string, payload: unknown) => {
@@ -183,6 +163,37 @@ export function useRealtimeKanban() {
     },
     []
   );
+
+  // Synchronize cards and currentUser when team members are updated or deleted
+  useEffect(() => {
+    const handleTeamUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent<{ action?: string; memberId?: string }>;
+      if (customEvent.detail?.action === 'delete' && customEvent.detail?.memberId) {
+        const delId = customEvent.detail.memberId;
+        setActiveUsers((prev) => prev.filter((u) => u.id !== delId));
+        broadcastEvent('TEAM_MEMBER_DELETED', { memberId: delId });
+      }
+
+      if (typeof window !== 'undefined') {
+        const savedCards = localStorage.getItem(STORAGE_KEY_CARDS);
+        if (savedCards) {
+          try {
+            setCards(JSON.parse(savedCards));
+          } catch {}
+        }
+        const savedUser = localStorage.getItem(STORAGE_KEY_USER);
+        if (savedUser) {
+          try {
+            setCurrentUser(JSON.parse(savedUser));
+          } catch {}
+        }
+      }
+    };
+    window.addEventListener(TEAM_UPDATED_EVENT, handleTeamUpdate);
+    return () => {
+      window.removeEventListener(TEAM_UPDATED_EVENT, handleTeamUpdate);
+    };
+  }, [broadcastEvent]);
 
   // Record an activity item
   const recordActivity = useCallback(
@@ -344,6 +355,20 @@ export function useRealtimeKanban() {
           if (typeof window !== 'undefined') {
             localStorage.setItem(STORAGE_KEY_CARDS, JSON.stringify(INITIAL_CARDS));
             localStorage.setItem(STORAGE_KEY_COLUMNS, JSON.stringify(INITIAL_COLUMNS));
+          }
+          break;
+        }
+        case 'TEAM_MEMBER_DELETED': {
+          const { memberId } = payload as { memberId: string };
+          if (memberId) {
+            deleteStoredTeamMember(memberId);
+            setActiveUsers((prev) => prev.filter((u) => u.id !== memberId));
+            setCards((prev) =>
+              prev.map((c) => ({
+                ...c,
+                assignees: (c.assignees || []).filter((a) => a.id !== memberId),
+              }))
+            );
           }
           break;
         }

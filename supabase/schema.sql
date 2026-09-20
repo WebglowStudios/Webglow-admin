@@ -44,6 +44,11 @@ CREATE TABLE IF NOT EXISTS public.cards (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Ensure new columns are added if the cards table already exists from an earlier version
+ALTER TABLE public.cards ADD COLUMN IF NOT EXISTS phone TEXT DEFAULT '';
+ALTER TABLE public.cards ADD COLUMN IF NOT EXISTS email TEXT DEFAULT '';
+ALTER TABLE public.cards ADD COLUMN IF NOT EXISTS lead_value TEXT DEFAULT '';
+
 -- 4. Create activity logs table
 CREATE TABLE IF NOT EXISTS public.activity_logs (
   id TEXT PRIMARY KEY,
@@ -95,10 +100,14 @@ CREATE TABLE IF NOT EXISTS public.daily_work_logs (
   is_present BOOLEAN NOT NULL DEFAULT true,
   hours_worked NUMERIC NOT NULL DEFAULT 0,
   tasks_done TEXT NOT NULL DEFAULT '',
+  log_type TEXT DEFAULT 'sales',           -- 'developer' or 'sales'
   dms_sent INTEGER NOT NULL DEFAULT 0,
   calls_done INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Ensure log_type column exists if table already existed
+ALTER TABLE public.daily_work_logs ADD COLUMN IF NOT EXISTS log_type TEXT DEFAULT 'sales';
 
 -- 8. Create custom tag options table
 CREATE TABLE IF NOT EXISTS public.tag_options (
@@ -120,26 +129,51 @@ ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.daily_work_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tag_options ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow public all boards" ON public.boards;
 CREATE POLICY "Allow public all boards" ON public.boards FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public all columns" ON public.columns;
 CREATE POLICY "Allow public all columns" ON public.columns FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public all cards" ON public.cards;
 CREATE POLICY "Allow public all cards" ON public.cards FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public all activity" ON public.activity_logs;
 CREATE POLICY "Allow public all activity" ON public.activity_logs FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public all team_members" ON public.team_members;
 CREATE POLICY "Allow public all team_members" ON public.team_members FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public all clients" ON public.clients;
 CREATE POLICY "Allow public all clients" ON public.clients FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public all daily_work_logs" ON public.daily_work_logs;
 CREATE POLICY "Allow public all daily_work_logs" ON public.daily_work_logs FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public all tag_options" ON public.tag_options;
 CREATE POLICY "Allow public all tag_options" ON public.tag_options FOR ALL USING (true) WITH CHECK (true);
 
 -- ==============================================================================
--- Enable Realtime Broadcasts on All Tables
+-- Enable Realtime Broadcasts on All Tables (Idempotent Safe Check)
 -- ==============================================================================
-ALTER PUBLICATION supabase_realtime ADD TABLE public.boards;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.columns;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.cards;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.activity_logs;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.team_members;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.clients;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.daily_work_logs;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.tag_options;
+DO $$
+DECLARE
+  tbl text;
+BEGIN
+  FOR tbl IN
+    SELECT unnest(ARRAY[
+      'boards', 'columns', 'cards', 'activity_logs',
+      'team_members', 'clients', 'daily_work_logs', 'tag_options'
+    ])
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables 
+      WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = tbl
+    ) THEN
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', tbl);
+    END IF;
+  END LOOP;
+END $$;
 
 -- ==============================================================================
 -- Seed Initial Default Data

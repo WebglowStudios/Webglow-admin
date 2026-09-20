@@ -97,8 +97,9 @@ export interface DailyWorkLog {
   isPresent: boolean; // Are you present / willing to work today?
   hoursWorked: number; // Hours of effort put in
   tasksDone: string; // What did you do today?
-  dmsSent: number; // Number of DMs sent
-  callsDone: number; // Number of calls done
+  logType?: 'developer' | 'sales'; // Developer vs Sales attendance mode
+  dmsSent?: number; // Number of DMs sent (sales only)
+  callsDone?: number; // Number of calls done (sales only)
   clientsCount?: number; // Optional legacy field
   outcome?: string; // Optional legacy field
   createdAt: string;

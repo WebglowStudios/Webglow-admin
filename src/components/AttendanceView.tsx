@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   XCircle,
   Trash2,
+  Code,
 } from 'lucide-react';
 import { DailyWorkLog, UserPresence, AgencyMember } from '../types/kanban';
 import { INITIAL_WORK_LOGS } from '../lib/mockData';
@@ -31,6 +32,15 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
 
   // Dynamic team members list
   const [teamMembers, setTeamMembers] = useState<AgencyMember[]>(() => getStoredTeamMembers());
+
+  // Developer vs Sales toggle (auto-detected from role, can be switched anytime)
+  const [isDevMode, setIsDevMode] = useState<boolean>(() =>
+    /engineer|dev|developer|architect|designer|qa/i.test(currentUser.role)
+  );
+
+  React.useEffect(() => {
+    setIsDevMode(/engineer|dev|developer|architect|designer|qa/i.test(currentUser.role));
+  }, [currentUser.role]);
 
   // Listen for team member changes
   React.useEffect(() => {
@@ -98,8 +108,8 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
     }
 
     const hours = parseFloat(formHours) || 0;
-    const dms = parseInt(formDms, 10) || 0;
-    const calls = parseInt(formCalls, 10) || 0;
+    const dms = isDevMode ? 0 : (parseInt(formDms, 10) || 0);
+    const calls = isDevMode ? 0 : (parseInt(formCalls, 10) || 0);
 
     const newLog: DailyWorkLog = {
       id: `log-${Date.now()}`,
@@ -111,6 +121,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
       isPresent: formIsPresent,
       hoursWorked: hours,
       tasksDone: formTasks.trim(),
+      logType: isDevMode ? 'developer' : 'sales',
       dmsSent: dms,
       callsDone: calls,
       createdAt: new Date().toISOString(),
@@ -124,7 +135,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
 
     // Reset form fields
     setFormTasks('');
-    alert('Daily work log saved successfully!');
+    alert(isDevMode ? 'Developer work log saved successfully!' : 'Sales work log saved successfully!');
   };
 
   const handleDeleteLog = (logId: string) => {
@@ -278,14 +289,43 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <label className="text-[11px] text-neutral-400">Date:</label>
-            <input
-              type="date"
-              value={formDate}
-              onChange={(e) => setFormDate(e.target.value)}
-              className="px-2.5 py-1 rounded-lg bg-[#161a1d] border border-[#384148] text-white text-xs focus:outline-none focus:border-sky-400"
-            />
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Developer vs Sales Mode Toggle */}
+            <div className="flex items-center bg-[#161a1d] p-0.5 rounded-xl border border-[#384148]">
+              <button
+                type="button"
+                onClick={() => setIsDevMode(false)}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  !isDevMode
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-xs'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <span>💼 Sales</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsDevMode(true)}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  isDevMode
+                    ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-xs'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <Code className="w-3.5 h-3.5" />
+                <span>💻 Developer</span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <label className="text-[11px] text-neutral-400">Date:</label>
+              <input
+                type="date"
+                value={formDate}
+                onChange={(e) => setFormDate(e.target.value)}
+                className="px-2.5 py-1 rounded-lg bg-[#161a1d] border border-[#384148] text-white text-xs focus:outline-none focus:border-sky-400"
+              />
+            </div>
           </div>
         </div>
 
@@ -347,48 +387,61 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
             </div>
           </div>
 
-          {/* Row 2: Sales Metrics (DMs Sent, Calls Done) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-[#161a1d]/70 border border-[#282e33]">
-            <div>
-              <label className="text-[11px] font-medium text-neutral-300 flex items-center gap-1.5 mb-1.5">
-                <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Number of DMs Sent</span>
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={formDms}
-                onChange={(e) => setFormDms(e.target.value)}
-                placeholder="e.g. 15"
-                className="w-full px-3 py-1.5 rounded-lg bg-[#1d2125] border border-[#384148] text-white font-mono text-xs focus:outline-none focus:border-sky-400"
-              />
-            </div>
+          {/* Row 2: Sales Metrics (DMs Sent, Calls Done) - Only shown in Sales Mode */}
+          {!isDevMode && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-[#161a1d]/70 border border-[#282e33] animate-in fade-in duration-100">
+              <div>
+                <label className="text-[11px] font-medium text-neutral-300 flex items-center gap-1.5 mb-1.5">
+                  <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Number of DMs Sent</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={formDms}
+                  onChange={(e) => setFormDms(e.target.value)}
+                  placeholder="e.g. 15"
+                  className="w-full px-3 py-1.5 rounded-lg bg-[#1d2125] border border-[#384148] text-white font-mono text-xs focus:outline-none focus:border-sky-400"
+                />
+              </div>
 
-            <div>
-              <label className="text-[11px] font-medium text-neutral-300 flex items-center gap-1.5 mb-1.5">
-                <PhoneCall className="w-3.5 h-3.5 text-amber-400" />
-                <span>Number of Calls Conducted</span>
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={formCalls}
-                onChange={(e) => setFormCalls(e.target.value)}
-                placeholder="e.g. 5"
-                className="w-full px-3 py-1.5 rounded-lg bg-[#1d2125] border border-[#384148] text-white font-mono text-xs focus:outline-none focus:border-sky-400"
-              />
+              <div>
+                <label className="text-[11px] font-medium text-neutral-300 flex items-center gap-1.5 mb-1.5">
+                  <PhoneCall className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Number of Calls Conducted</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={formCalls}
+                  onChange={(e) => setFormCalls(e.target.value)}
+                  placeholder="e.g. 5"
+                  className="w-full px-3 py-1.5 rounded-lg bg-[#1d2125] border border-[#384148] text-white font-mono text-xs focus:outline-none focus:border-sky-400"
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Row 3: What did you do? */}
           <div>
-            <label className="text-[11px] font-medium text-neutral-300 uppercase tracking-wider block mb-1.5">
-              What did you do today? *
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[11px] font-medium text-neutral-300 uppercase tracking-wider">
+                {isDevMode ? 'What did you build / fix today? *' : 'What did you do today? *'}
+              </label>
+              {isDevMode && (
+                <span className="text-[10px] text-indigo-400 font-medium">
+                  Developer Mode &bull; Simplistic log with no sales outreach required
+                </span>
+              )}
+            </div>
             <textarea
               rows={3}
               required
-              placeholder="Detail your accomplishments, tasks delivered, outreach results, outcomes, or roadblocks resolved..."
+              placeholder={
+                isDevMode
+                  ? "Detail code shipped, bugs resolved, features implemented, commits or reviews completed..."
+                  : "Detail your accomplishments, tasks delivered, outreach results, outcomes, or roadblocks resolved..."
+              }
               value={formTasks}
               onChange={(e) => setFormTasks(e.target.value)}
               className="w-full p-3 rounded-xl bg-[#161a1d] border border-[#384148] text-white text-xs placeholder-neutral-500 focus:outline-none focus:border-sky-400 resize-none transition-colors"
@@ -399,10 +452,14 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
           <div className="flex justify-end pt-1">
             <button
               type="submit"
-              className="px-5 py-2.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-sky-500/20 flex items-center gap-2 transition-all"
+              className={`px-5 py-2.5 text-white rounded-xl text-xs font-semibold shadow-lg flex items-center gap-2 transition-all ${
+                isDevMode
+                  ? 'bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-400 hover:to-blue-500 shadow-indigo-500/20'
+                  : 'bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 shadow-sky-500/20'
+              }`}
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>Submit Daily Work Log</span>
+              <span>{isDevMode ? 'Submit Developer Work Log' : 'Submit Daily Work Log'}</span>
             </button>
           </div>
         </form>
@@ -498,12 +555,21 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
                     <div className="px-3 py-1.5 rounded-xl bg-[#1d2125] border border-[#384148] text-neutral-300 font-mono">
                       <span className="text-sky-400 font-bold">{memberHours.toFixed(1)}</span> hrs
                     </div>
-                    <div className="px-3 py-1.5 rounded-xl bg-[#1d2125] border border-[#384148] text-neutral-300 font-mono">
-                      <span className="text-emerald-400 font-bold">{memberDms}</span> DMs
-                    </div>
-                    <div className="px-3 py-1.5 rounded-xl bg-[#1d2125] border border-[#384148] text-neutral-300 font-mono">
-                      <span className="text-amber-400 font-bold">{memberCalls}</span> Calls
-                    </div>
+                    {(memberDms > 0 || memberCalls > 0) ? (
+                      <>
+                        <div className="px-3 py-1.5 rounded-xl bg-[#1d2125] border border-[#384148] text-neutral-300 font-mono">
+                          <span className="text-emerald-400 font-bold">{memberDms}</span> DMs
+                        </div>
+                        <div className="px-3 py-1.5 rounded-xl bg-[#1d2125] border border-[#384148] text-neutral-300 font-mono">
+                          <span className="text-amber-400 font-bold">{memberCalls}</span> Calls
+                        </div>
+                      </>
+                    ) : (
+                      <div className="px-2.5 py-1.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-[11px] font-medium flex items-center gap-1 font-sans">
+                        <Code className="w-3 h-3" />
+                        <span>Dev / Engineering</span>
+                      </div>
+                    )}
 
                     <button
                       type="button"
@@ -546,14 +612,23 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
                           </span>
                         </div>
 
-                        {/* Activity Badges */}
-                        <div className="flex items-center gap-2 text-[11px] font-mono">
-                          <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-                            💬 {log.dmsSent} DMs
-                          </span>
-                          <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
-                            📞 {log.callsDone} Calls
-                          </span>
+                        {/* Activity Badges: Dev Tag vs Sales Metrics */}
+                        <div className="flex items-center gap-2 text-[11px]">
+                          {log.logType === 'developer' || ((log.dmsSent ?? 0) === 0 && (log.callsDone ?? 0) === 0) ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1">
+                              <Code className="w-3 h-3" />
+                              <span>Dev</span>
+                            </span>
+                          ) : (
+                            <div className="flex items-center gap-1.5 font-mono">
+                              <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-[10px]">
+                                💬 {log.dmsSent ?? 0} DMs
+                              </span>
+                              <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 text-[10px]">
+                                📞 {log.callsDone ?? 0} Calls
+                              </span>
+                            </div>
+                          )}
 
                           <button
                             type="button"

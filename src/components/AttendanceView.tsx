@@ -12,8 +12,13 @@ import {
   XCircle,
   Trash2,
 } from 'lucide-react';
-import { DailyWorkLog, UserPresence } from '../types/kanban';
-import { AGENCY_MEMBERS, INITIAL_WORK_LOGS } from '../lib/mockData';
+import { DailyWorkLog, UserPresence, AgencyMember } from '../types/kanban';
+import { INITIAL_WORK_LOGS } from '../lib/mockData';
+import {
+  getStoredTeamMembers,
+  deleteStoredTeamMember,
+  TEAM_UPDATED_EVENT,
+} from '../lib/teamMembers';
 
 const STORAGE_KEY_WORK_LOGS = 'webglow_daily_work_logs_v1';
 
@@ -23,6 +28,26 @@ interface AttendanceViewProps {
 
 export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) => {
   const getTodayStr = () => new Date().toISOString().split('T')[0];
+
+  // Dynamic team members list
+  const [teamMembers, setTeamMembers] = useState<AgencyMember[]>(() => getStoredTeamMembers());
+
+  // Listen for team member changes
+  React.useEffect(() => {
+    const handleUpdate = () => {
+      setTeamMembers(getStoredTeamMembers());
+      if (typeof window !== 'undefined') {
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY_WORK_LOGS);
+          if (saved) setLogs(JSON.parse(saved));
+        } catch {}
+      }
+    };
+    window.addEventListener(TEAM_UPDATED_EVENT, handleUpdate);
+    return () => {
+      window.removeEventListener(TEAM_UPDATED_EVENT, handleUpdate);
+    };
+  }, []);
 
   // Lazy load work logs from localStorage
   const [logs, setLogs] = useState<DailyWorkLog[]>(() => {
@@ -108,11 +133,27 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
     }
   };
 
-  // Group team members: all distinct members that have logs or are in AGENCY_MEMBERS
+  const handleDeleteMember = (memberId: string, memberName: string) => {
+    if (
+      window.confirm(
+        `Are you sure you want to delete "${memberName}"? This will remove this user from the agency team and permanently erase all their daily work logs.`
+      )
+    ) {
+      const remaining = deleteStoredTeamMember(memberId);
+      setTeamMembers(remaining);
+      const updatedLogs = logs.filter((l) => l.memberId !== memberId);
+      saveLogs(updatedLogs);
+      if (selectedMemberFilter === memberId) {
+        setSelectedMemberFilter('all');
+      }
+    }
+  };
+
+  // Group team members: active stored members + currentUser
   const allTeamMembers = Array.from(
     new Map(
       [
-        ...AGENCY_MEMBERS.map((m) => ({
+        ...teamMembers.map((m) => ({
           id: m.id,
           name: m.name,
           role: m.role,
@@ -124,12 +165,6 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
           role: currentUser.role,
           avatarColor: currentUser.avatarColor,
         },
-        ...logs.map((l) => ({
-          id: l.memberId,
-          name: l.memberName,
-          role: l.memberRole,
-          avatarColor: l.avatarColor,
-        })),
       ].map((m) => [m.id, m])
     ).values()
   );
@@ -469,6 +504,16 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
                     <div className="px-3 py-1.5 rounded-xl bg-[#1d2125] border border-[#384148] text-neutral-300 font-mono">
                       <span className="text-amber-400 font-bold">{memberCalls}</span> Calls
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteMember(member.id, member.name)}
+                      title={`Delete ${member.name} and all work logs`}
+                      className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-neutral-400 hover:text-rose-400 hover:bg-rose-950/40 border border-[#384148] hover:border-rose-800/40 transition-colors ml-1 flex items-center gap-1.5"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span className="text-[11px] font-medium hidden sm:inline">Delete Member</span>
+                    </button>
                   </div>
                 </div>
 

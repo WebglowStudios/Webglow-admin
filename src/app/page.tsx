@@ -13,6 +13,7 @@ import { AttendanceView } from '../components/AttendanceView';
 import { ClientsView } from '../components/ClientsView';
 import { KanbanCard, ActiveNavView } from '../types/kanban';
 import { INITIAL_CLIENTS } from '../lib/mockData';
+import { getStoredTeamMembers, TEAM_UPDATED_EVENT } from '../lib/teamMembers';
 
 // Default evening river ghats background resembling the screenshot
 const DEFAULT_WALLPAPER =
@@ -92,6 +93,19 @@ export default function Home() {
     updateCard(updated);
   };
 
+  // Dynamic team members count for sidebar pill
+  const [teamCount, setTeamCount] = useState<number>(() => getStoredTeamMembers().length);
+
+  React.useEffect(() => {
+    const handleUpdate = () => {
+      setTeamCount(getStoredTeamMembers().length);
+    };
+    window.addEventListener(TEAM_UPDATED_EVENT, handleUpdate);
+    return () => {
+      window.removeEventListener(TEAM_UPDATED_EVENT, handleUpdate);
+    };
+  }, []);
+
   // Compute total revenue for sidebar pill
   const totalRevenue = INITIAL_CLIENTS.reduce((sum, c) => sum + c.revenueCollected, 0);
 
@@ -108,7 +122,7 @@ export default function Home() {
         activeView={activeView}
         onSelectView={setActiveView}
         leadsCount={cards.length}
-        presentCount={4}
+        presentCount={Math.max(1, teamCount)}
         totalRevenue={totalRevenue}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}

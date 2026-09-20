@@ -22,6 +22,13 @@ export interface UserPresence {
   activeColumnId?: string | null;
 }
 
+export interface AgencyMember {
+  id: string;
+  name: string;
+  role: string;
+  avatarColor: string;
+}
+
 export interface TagOption {
   id: string;
   name: string;

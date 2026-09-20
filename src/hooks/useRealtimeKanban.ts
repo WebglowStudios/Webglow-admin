@@ -11,8 +11,8 @@ import {
 import {
   INITIAL_CARDS,
   INITIAL_COLUMNS,
-  AGENCY_MEMBERS,
 } from '../lib/mockData';
+import { getStoredTeamMembers, TEAM_UPDATED_EVENT } from '../lib/teamMembers';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -74,7 +74,11 @@ function getInitialUser(): UserPresence {
       }
     }
   }
-  const randomMember = AGENCY_MEMBERS[Math.floor(Math.random() * AGENCY_MEMBERS.length)];
+  const members = getStoredTeamMembers();
+  const randomMember =
+    members.length > 0
+      ? members[Math.floor(Math.random() * members.length)]
+      : { name: 'Studio Admin', role: 'Agency Lead', avatarColor: '#0c66e4' };
   return {
     id: `user-${Math.random().toString(36).substring(2, 9)}`,
     name: randomMember.name,
@@ -117,6 +121,30 @@ export function useRealtimeKanban() {
       localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(currentUser));
     }
   }, [currentUser]);
+
+  // Synchronize cards and currentUser when team members are updated or deleted
+  useEffect(() => {
+    const handleTeamUpdate = () => {
+      if (typeof window !== 'undefined') {
+        const savedCards = localStorage.getItem(STORAGE_KEY_CARDS);
+        if (savedCards) {
+          try {
+            setCards(JSON.parse(savedCards));
+          } catch {}
+        }
+        const savedUser = localStorage.getItem(STORAGE_KEY_USER);
+        if (savedUser) {
+          try {
+            setCurrentUser(JSON.parse(savedUser));
+          } catch {}
+        }
+      }
+    };
+    window.addEventListener(TEAM_UPDATED_EVENT, handleTeamUpdate);
+    return () => {
+      window.removeEventListener(TEAM_UPDATED_EVENT, handleTeamUpdate);
+    };
+  }, []);
 
   // Broadcast helper (BroadcastChannel + Supabase)
   const broadcastEvent = useCallback(

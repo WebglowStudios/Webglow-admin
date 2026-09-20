@@ -9,7 +9,10 @@ interface SupabaseSetupModalProps {
   isSupabaseMode: boolean;
 }
 
-const SQL_SCHEMA = `-- Webglow Admin: Real-Time Kanban Board Database Schema for Supabase
+const SQL_SCHEMA = `-- Webglow Admin: Complete Database Schema for Supabase
+-- Covers: Boards, Columns, Cards (with Lead/CRM fields), Activity Logs,
+--         Team Members, Clients & Retainers, Daily Work Logs, and Custom Tags.
+
 -- 1. Create tables
 CREATE TABLE IF NOT EXISTS public.boards (
   id TEXT PRIMARY KEY,
@@ -24,7 +27,7 @@ CREATE TABLE IF NOT EXISTS public.columns (
   board_id TEXT NOT NULL REFERENCES public.boards(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   order_index INTEGER NOT NULL DEFAULT 0,
-  color_dot TEXT DEFAULT '#388bff',
+  color_dot TEXT DEFAULT '#3b82f6',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -40,6 +43,9 @@ CREATE TABLE IF NOT EXISTS public.cards (
   due_date TEXT,
   checklist JSONB DEFAULT '[]'::jsonb,
   order_index INTEGER NOT NULL DEFAULT 0,
+  phone TEXT DEFAULT '',
+  email TEXT DEFAULT '',
+  lead_value TEXT DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -54,22 +60,83 @@ CREATE TABLE IF NOT EXISTS public.activity_logs (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS public.team_members (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'Collaborator',
+  avatar_color TEXT NOT NULL DEFAULT '#0c66e4',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.clients (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'production',
+  status TEXT NOT NULL DEFAULT 'active',
+  services TEXT DEFAULT '',
+  revenue_collected NUMERIC NOT NULL DEFAULT 0,
+  monthly_retainer NUMERIC DEFAULT 0,
+  closed_date TEXT,
+  contact_name TEXT,
+  contact_email TEXT,
+  contact_phone TEXT,
+  start_date TEXT,
+  completion_date TEXT,
+  notes TEXT DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.daily_work_logs (
+  id TEXT PRIMARY KEY,
+  member_id TEXT NOT NULL,
+  member_name TEXT NOT NULL,
+  member_role TEXT NOT NULL,
+  avatar_color TEXT NOT NULL,
+  date TEXT NOT NULL,
+  is_present BOOLEAN NOT NULL DEFAULT true,
+  hours_worked NUMERIC NOT NULL DEFAULT 0,
+  tasks_done TEXT NOT NULL DEFAULT '',
+  dms_sent INTEGER NOT NULL DEFAULT 0,
+  calls_done INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.tag_options (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  color TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- 2. Open collaboration policies
 ALTER TABLE public.boards ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.columns ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cards ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.team_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.daily_work_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tag_options ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow public all boards" ON public.boards FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public all columns" ON public.columns FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public all cards" ON public.cards FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public all activity" ON public.activity_logs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public all team_members" ON public.team_members FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public all clients" ON public.clients FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public all daily_work_logs" ON public.daily_work_logs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public all tag_options" ON public.tag_options FOR ALL USING (true) WITH CHECK (true);
 
 -- 3. Enable Realtime Publications
 ALTER PUBLICATION supabase_realtime ADD TABLE public.boards;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.columns;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.cards;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.activity_logs;`;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.activity_logs;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.team_members;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.clients;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.daily_work_logs;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.tag_options;`;
 
 export const SupabaseSetupModal: React.FC<SupabaseSetupModalProps> = ({
   isOpen,

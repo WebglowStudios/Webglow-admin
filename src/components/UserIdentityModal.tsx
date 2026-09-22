@@ -7,6 +7,7 @@ import {
   getStoredTeamMembers,
   deleteStoredTeamMember,
   addStoredTeamMember,
+  syncTeamMembersFromCloud,
   TEAM_UPDATED_EVENT,
 } from '../lib/teamMembers';
 
@@ -14,7 +15,7 @@ interface UserIdentityModalProps {
   isOpen: boolean;
   currentUser: UserPresence;
   onClose: () => void;
-  onSave: (name: string, role: string, avatarColor: string) => void;
+  onSave: (name: string, role: string, avatarColor: string, memberId?: string) => void;
 }
 
 const AVATAR_COLORS = [
@@ -37,6 +38,7 @@ export const UserIdentityModal: React.FC<UserIdentityModalProps> = ({
   const [name, setName] = useState(currentUser.name);
   const [role, setRole] = useState(currentUser.role);
   const [color, setColor] = useState(currentUser.avatarColor);
+  const [selectedMemberId, setSelectedMemberId] = useState<string>(currentUser.id);
 
   // Dynamic team members list
   const [members, setMembers] = useState<AgencyMember[]>(() => getStoredTeamMembers());
@@ -47,12 +49,17 @@ export const UserIdentityModal: React.FC<UserIdentityModalProps> = ({
   const [newMemberRole, setNewMemberRole] = useState('');
   const [newMemberColor, setNewMemberColor] = useState('#0c66e4');
 
-  // Keep members in sync with external updates
+  // Keep members in sync with external updates & cloud
   useEffect(() => {
     const handleUpdate = () => {
       setMembers(getStoredTeamMembers());
     };
     window.addEventListener(TEAM_UPDATED_EVENT, handleUpdate);
+    syncTeamMembersFromCloud().then((cloudMembers) => {
+      if (cloudMembers && cloudMembers.length > 0) {
+        setMembers(cloudMembers);
+      }
+    });
     return () => {
       window.removeEventListener(TEAM_UPDATED_EVENT, handleUpdate);
     };
@@ -63,11 +70,13 @@ export const UserIdentityModal: React.FC<UserIdentityModalProps> = ({
     setName(currentUser.name);
     setRole(currentUser.role);
     setColor(currentUser.avatarColor);
+    setSelectedMemberId(currentUser.id);
   }, [currentUser]);
 
   if (!isOpen) return null;
 
   const handleSelectPreset = (member: AgencyMember) => {
+    setSelectedMemberId(member.id);
     setName(member.name);
     setRole(member.role);
     setColor(member.avatarColor);
@@ -82,12 +91,14 @@ export const UserIdentityModal: React.FC<UserIdentityModalProps> = ({
     ) {
       const remaining = deleteStoredTeamMember(member.id);
       setMembers(remaining);
-      if (name === member.name) {
+      if (name === member.name || selectedMemberId === member.id) {
         const next = remaining[0] || {
+          id: 'user-admin',
           name: 'Studio Admin',
           role: 'Agency Lead',
           avatarColor: '#0c66e4',
         };
+        setSelectedMemberId(next.id);
         setName(next.name);
         setRole(next.role);
         setColor(next.avatarColor);
@@ -117,7 +128,7 @@ export const UserIdentityModal: React.FC<UserIdentityModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    onSave(name.trim(), role.trim() || 'Collaborator', color);
+    onSave(name.trim(), role.trim() || 'Collaborator', color, selectedMemberId);
     onClose();
   };
 

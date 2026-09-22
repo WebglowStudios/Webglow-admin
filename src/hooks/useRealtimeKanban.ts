@@ -15,6 +15,8 @@ import {
 import {
   getStoredTeamMembers,
   deleteStoredTeamMember,
+  saveStoredTeamMembers,
+  syncTeamMembersFromCloud,
   TEAM_UPDATED_EVENT,
 } from '../lib/teamMembers';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
@@ -31,6 +33,7 @@ import {
   dbLogActivity,
   mapDbCardToCard,
   mapDbColumnToColumn,
+  mapDbMemberToAgencyMember,
 } from '../lib/supabaseService';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -86,22 +89,25 @@ function getInitialUser(): UserPresence {
     const saved = localStorage.getItem(STORAGE_KEY_USER);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.id && parsed.name) {
+          return parsed;
+        }
       } catch {
         // ignore
       }
     }
   }
   const members = getStoredTeamMembers();
-  const randomMember =
+  const defaultMember =
     members.length > 0
-      ? members[Math.floor(Math.random() * members.length)]
-      : { name: 'Studio Admin', role: 'Agency Lead', avatarColor: '#0c66e4' };
+      ? members[0]
+      : { id: 'user-1', name: 'Leo Vance', role: 'Lead Architect', avatarColor: '#3b82f6' };
   return {
-    id: `user-${Math.random().toString(36).substring(2, 9)}`,
-    name: randomMember.name,
-    role: randomMember.role,
-    avatarColor: randomMember.avatarColor,
+    id: defaultMember.id,
+    name: defaultMember.name,
+    role: defaultMember.role,
+    avatarColor: defaultMember.avatarColor,
     lastActive: Date.now(),
     viewingCardId: null,
   };
@@ -150,6 +156,7 @@ export function useRealtimeKanban() {
           ensureInitialBoardAndColumns(),
           loadOrSeedCards(),
           loadActivityLogs(),
+          syncTeamMembersFromCloud(),
         ]);
         if (isMounted) {
           if (cloudCols && cloudCols.length > 0) {
@@ -541,6 +548,27 @@ export function useRealtimeKanban() {
             }
           }
         )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'team_members' },
+          (payload) => {
+            if (payload.eventType === 'INSERT') {
+              const newMember = mapDbMemberToAgencyMember(payload.new as Record<string, unknown>);
+              const current = getStoredTeamMembers();
+              if (!current.some((m) => m.id === newMember.id)) {
+                saveStoredTeamMembers([...current, newMember], 'add', newMember.id);
+              }
+            } else if (payload.eventType === 'UPDATE') {
+              const updated = mapDbMemberToAgencyMember(payload.new as Record<string, unknown>);
+              const current = getStoredTeamMembers();
+              const next = current.map((m) => (m.id === updated.id ? updated : m));
+              saveStoredTeamMembers(next, 'update', updated.id);
+            } else if (payload.eventType === 'DELETE') {
+              const delId = String((payload.old as Record<string, unknown>).id);
+              deleteStoredTeamMember(delId);
+            }
+          }
+        )
         .on('presence', { event: 'sync' }, () => {
           const state = supaChannel?.presenceState<{
             id: string;
@@ -806,16 +834,17 @@ export function useRealtimeKanban() {
   );
 
   const updateUserIdentity = useCallback(
-    (name: string, role: string, avatarColor: string) => {
+    (name: string, role: string, avatarColor: string, memberId?: string) => {
       const updated: UserPresence = {
         ...currentUser,
+        id: memberId || currentUser.id,
         name: name.trim() || 'Collaborator',
         role: role.trim() || 'Team Member',
         avatarColor,
         lastActive: Date.now(),
       };
       setCurrentUser(updated);
-      recordActivity('joined as', `${updated.name} (${updated.role})`);
+      recordActivity('switched identity to', `${updated.name} (${updated.role})`);
     },
     [currentUser, recordActivity]
   );

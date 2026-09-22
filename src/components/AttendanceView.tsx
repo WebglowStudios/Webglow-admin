@@ -18,6 +18,7 @@ import { INITIAL_WORK_LOGS } from '../lib/mockData';
 import {
   getStoredTeamMembers,
   deleteStoredTeamMember,
+  syncTeamMembersFromCloud,
   TEAM_UPDATED_EVENT,
 } from '../lib/teamMembers';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
@@ -28,6 +29,7 @@ import {
   dbResetWorkLogs,
   dbDeleteTeamMember,
   mapDbLogToDailyWorkLog,
+  mapDbMemberToAgencyMember,
 } from '../lib/supabaseService';
 
 const STORAGE_KEY_WORK_LOGS = 'webglow_daily_work_logs_v1';
@@ -74,11 +76,19 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
     let isMounted = true;
     async function initCloudLogs() {
       try {
-        const cloudLogs = await loadOrSeedWorkLogs();
-        if (isMounted && cloudLogs && cloudLogs.length > 0) {
-          setLogs(cloudLogs);
-          if (typeof window !== 'undefined') {
-            localStorage.setItem(STORAGE_KEY_WORK_LOGS, JSON.stringify(cloudLogs));
+        const [cloudLogs, cloudMembers] = await Promise.all([
+          loadOrSeedWorkLogs(),
+          syncTeamMembersFromCloud(),
+        ]);
+        if (isMounted) {
+          if (cloudLogs && cloudLogs.length > 0) {
+            setLogs(cloudLogs);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem(STORAGE_KEY_WORK_LOGS, JSON.stringify(cloudLogs));
+            }
+          }
+          if (cloudMembers && cloudMembers.length > 0) {
+            setTeamMembers(cloudMembers);
           }
         }
       } catch (err) {
@@ -91,7 +101,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
     };
   }, []);
 
-  // Real-time Postgres changes for daily_work_logs
+  // Real-time Postgres changes for daily_work_logs and team_members
   React.useEffect(() => {
     const supa = getSupabase();
     if (!supa) return;
@@ -133,6 +143,25 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
               }
               return next;
             });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'team_members' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newMember = mapDbMemberToAgencyMember(payload.new as Record<string, unknown>);
+            setTeamMembers((prev) => {
+              if (prev.some((m) => m.id === newMember.id)) return prev;
+              return [...prev, newMember];
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            const updated = mapDbMemberToAgencyMember(payload.new as Record<string, unknown>);
+            setTeamMembers((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+          } else if (payload.eventType === 'DELETE') {
+            const delId = String((payload.old as Record<string, unknown>).id);
+            setTeamMembers((prev) => prev.filter((m) => m.id !== delId));
           }
         }
       )
@@ -248,25 +277,28 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
     }
   };
 
-  // Group team members: active stored members + currentUser
-  const allTeamMembers = Array.from(
-    new Map(
-      [
-        ...teamMembers.map((m) => ({
-          id: m.id,
-          name: m.name,
-          role: m.role,
-          avatarColor: m.avatarColor,
-        })),
-        {
-          id: currentUser.id,
-          name: currentUser.name,
-          role: currentUser.role,
-          avatarColor: currentUser.avatarColor,
-        },
-      ].map((m) => [m.id, m])
-    ).values()
-  );
+  // Match team members strictly with cloud team members, plus any member associated with existing logs
+  const memberMap = new Map<string, AgencyMember>();
+  teamMembers.forEach((m) => memberMap.set(m.id, m));
+  logs.forEach((l) => {
+    if (!memberMap.has(l.memberId)) {
+      memberMap.set(l.memberId, {
+        id: l.memberId,
+        name: l.memberName,
+        role: l.memberRole,
+        avatarColor: l.avatarColor,
+      });
+    }
+  });
+  if (!memberMap.has(currentUser.id)) {
+    memberMap.set(currentUser.id, {
+      id: currentUser.id,
+      name: currentUser.name,
+      role: currentUser.role,
+      avatarColor: currentUser.avatarColor,
+    });
+  }
+  const allTeamMembers = Array.from(memberMap.values());
 
   // Overall Weekly Totals
   const totalTeamHours = logs.reduce((sum, l) => sum + (l.hoursWorked || 0), 0);

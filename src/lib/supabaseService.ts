@@ -353,30 +353,22 @@ export async function loadOrSeedClients(): Promise<ClientRecord[]> {
  */
 export async function loadOrSeedTeamMembers(): Promise<AgencyMember[]> {
   const supa = getSupabase();
-  if (!supa) return AGENCY_MEMBERS;
+  if (!supa) return AGENCY_MEMBERS.slice(0, 3);
 
   try {
-    const { data: members, error } = await supa.from('team_members').select('*');
+    const { data: members, error } = await supa
+      .from('team_members')
+      .select('*')
+      .order('created_at', { ascending: true });
 
     if (!error && members && members.length > 0) {
       return members.map(mapDbMemberToAgencyMember);
     }
-
-    // Seed default team members
-    const dbMembers = AGENCY_MEMBERS.map(mapAgencyMemberToDb);
-    const { data: inserted, error: insertErr } = await supa
-      .from('team_members')
-      .upsert(dbMembers, { onConflict: 'id' })
-      .select('*');
-
-    if (!insertErr && inserted && inserted.length > 0) {
-      return inserted.map(mapDbMemberToAgencyMember);
-    }
   } catch (err) {
-    console.error('Error loading or seeding team members in Supabase:', err);
+    console.error('Error loading team members from Supabase:', err);
   }
 
-  return AGENCY_MEMBERS;
+  return AGENCY_MEMBERS.slice(0, 3);
 }
 
 /**

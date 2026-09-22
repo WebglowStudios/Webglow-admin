@@ -1,6 +1,6 @@
 import { AgencyMember, DailyWorkLog, KanbanCard, UserPresence } from '../types/kanban';
 import { AGENCY_MEMBERS } from './mockData';
-import { dbSaveTeamMember, dbDeleteTeamMember } from './supabaseService';
+import { dbSaveTeamMember, dbDeleteTeamMember, loadOrSeedTeamMembers } from './supabaseService';
 
 export const STORAGE_KEY_TEAM_MEMBERS = 'webglow_agency_members_v1';
 const STORAGE_KEY_WORK_LOGS = 'webglow_daily_work_logs_v1';
@@ -42,7 +42,30 @@ export function getStoredTeamMembers(): AgencyMember[] {
       console.error('Failed to read team members from localStorage', err);
     }
   }
-  return AGENCY_MEMBERS;
+  return AGENCY_MEMBERS.slice(0, 3);
+}
+
+/**
+ * Fetch authoritative team members list from Supabase cloud
+ */
+export async function syncTeamMembersFromCloud(): Promise<AgencyMember[]> {
+  try {
+    const cloudMembers = await loadOrSeedTeamMembers();
+    if (cloudMembers && cloudMembers.length > 0) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEY_TEAM_MEMBERS, JSON.stringify(cloudMembers));
+        window.dispatchEvent(
+          new CustomEvent(TEAM_UPDATED_EVENT, {
+            detail: { action: 'sync', members: cloudMembers },
+          })
+        );
+      }
+      return cloudMembers;
+    }
+  } catch (err) {
+    console.warn('Failed to sync team members from cloud', err);
+  }
+  return getStoredTeamMembers();
 }
 
 /**

@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Tag, Plus, Check, X, ChevronDown, Trash2, PhoneOff } from 'lucide-react';
 import { CardTag } from '../types/kanban';
 import { DEFAULT_TAG_OPTIONS } from '../lib/mockData';
+import { isSupabaseConfigured } from '../lib/supabase';
+import { dbSaveTagOption, loadOrSeedTagOptions } from '../lib/supabaseService';
 
 interface TagDropdownSelectorProps {
   selectedTags: CardTag[];
@@ -48,6 +50,29 @@ export const TagDropdownSelector: React.FC<TagDropdownSelectorProps> = ({
     return DEFAULT_TAG_OPTIONS;
   });
 
+  // Sync tag options with cloud on mount
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+    let isMounted = true;
+    async function initTags() {
+      try {
+        const cloudTags = await loadOrSeedTagOptions();
+        if (isMounted && cloudTags && cloudTags.length > 0) {
+          setAvailableOptions(cloudTags);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(STORAGE_KEY_TAG_OPTIONS, JSON.stringify(cloudTags));
+          }
+        }
+      } catch (err) {
+        console.warn('Error loading tag options from cloud:', err);
+      }
+    }
+    initTags();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Save options to localStorage when changed
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -90,6 +115,7 @@ export const TagDropdownSelector: React.FC<TagDropdownSelectorProps> = ({
 
     setAvailableOptions((prev) => [newTag, ...prev]);
     onToggleTag(newTag);
+    dbSaveTagOption(newTag);
     setSearchQuery('');
   };
 

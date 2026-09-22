@@ -1,5 +1,6 @@
 import { AgencyMember, DailyWorkLog, KanbanCard, UserPresence } from '../types/kanban';
 import { AGENCY_MEMBERS } from './mockData';
+import { dbSaveTeamMember, dbDeleteTeamMember } from './supabaseService';
 
 export const STORAGE_KEY_TEAM_MEMBERS = 'webglow_agency_members_v1';
 const STORAGE_KEY_WORK_LOGS = 'webglow_daily_work_logs_v1';
@@ -73,6 +74,7 @@ export function addStoredTeamMember(member: AgencyMember): AgencyMember[] {
   const current = getStoredTeamMembers();
   const updated = [...current.filter((m) => m.id !== member.id), member];
   saveStoredTeamMembers(updated, 'add', member.id);
+  dbSaveTeamMember(member);
   return updated;
 }
 
@@ -87,6 +89,7 @@ export function addStoredTeamMember(member: AgencyMember): AgencyMember[] {
 export function deleteStoredTeamMember(memberId: string): AgencyMember[] {
   const current = getStoredTeamMembers();
   const updated = current.filter((m) => m.id !== memberId);
+  dbDeleteTeamMember(memberId);
 
   if (typeof window !== 'undefined') {
     // 1. Clean up associated work logs

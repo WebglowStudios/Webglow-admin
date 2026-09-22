@@ -20,6 +20,15 @@ import {
   deleteStoredTeamMember,
   TEAM_UPDATED_EVENT,
 } from '../lib/teamMembers';
+import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
+import {
+  loadOrSeedWorkLogs,
+  dbSaveWorkLog,
+  dbDeleteWorkLog,
+  dbResetWorkLogs,
+  dbDeleteTeamMember,
+  mapDbLogToDailyWorkLog,
+} from '../lib/supabaseService';
 
 const STORAGE_KEY_WORK_LOGS = 'webglow_daily_work_logs_v1';
 
@@ -59,6 +68,81 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
     };
   }, []);
 
+  // Fetch from Supabase cloud on mount (or seed empty DB)
+  React.useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+    let isMounted = true;
+    async function initCloudLogs() {
+      try {
+        const cloudLogs = await loadOrSeedWorkLogs();
+        if (isMounted && cloudLogs && cloudLogs.length > 0) {
+          setLogs(cloudLogs);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(STORAGE_KEY_WORK_LOGS, JSON.stringify(cloudLogs));
+          }
+        }
+      } catch (err) {
+        console.warn('Could not load work logs from Supabase:', err);
+      }
+    }
+    initCloudLogs();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Real-time Postgres changes for daily_work_logs
+  React.useEffect(() => {
+    const supa = getSupabase();
+    if (!supa) return;
+
+    const channel = supa
+      .channel('webglow-work-logs-live')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'daily_work_logs' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newLog = mapDbLogToDailyWorkLog(payload.new as Record<string, unknown>);
+            setLogs((prev) => {
+              if (prev.some((l) => l.id === newLog.id)) return prev;
+              const next = [
+                newLog,
+                ...prev.filter((l) => !(l.memberId === newLog.memberId && l.date === newLog.date)),
+              ];
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(STORAGE_KEY_WORK_LOGS, JSON.stringify(next));
+              }
+              return next;
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            const updated = mapDbLogToDailyWorkLog(payload.new as Record<string, unknown>);
+            setLogs((prev) => {
+              const next = prev.map((l) => (l.id === updated.id ? updated : l));
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(STORAGE_KEY_WORK_LOGS, JSON.stringify(next));
+              }
+              return next;
+            });
+          } else if (payload.eventType === 'DELETE') {
+            const oldId = String((payload.old as Record<string, unknown>).id);
+            setLogs((prev) => {
+              const next = prev.filter((l) => l.id !== oldId);
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(STORAGE_KEY_WORK_LOGS, JSON.stringify(next));
+              }
+              return next;
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supa.removeChannel(channel);
+    };
+  }, []);
+
   // Lazy load work logs from localStorage
   const [logs, setLogs] = useState<DailyWorkLog[]>(() => {
     if (typeof window !== 'undefined') {
@@ -94,9 +178,10 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
     }
   };
 
-  const handleResetSampleData = () => {
+  const handleResetSampleData = async () => {
     if (window.confirm('Reset all work logs to default sample week data?')) {
-      saveLogs(INITIAL_WORK_LOGS);
+      const resetLogs = await dbResetWorkLogs();
+      saveLogs(resetLogs);
     }
   };
 
@@ -132,6 +217,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
       (l) => !(l.memberId === currentUser.id && l.date === formDate)
     );
     saveLogs([newLog, ...filtered]);
+    dbSaveWorkLog(newLog);
 
     // Reset form fields
     setFormTasks('');
@@ -141,6 +227,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
   const handleDeleteLog = (logId: string) => {
     if (window.confirm('Are you sure you want to delete this daily work log?')) {
       saveLogs(logs.filter((l) => l.id !== logId));
+      dbDeleteWorkLog(logId);
     }
   };
 
@@ -151,6 +238,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
       )
     ) {
       const remaining = deleteStoredTeamMember(memberId);
+      dbDeleteTeamMember(memberId);
       setTeamMembers(remaining);
       const updatedLogs = logs.filter((l) => l.memberId !== memberId);
       saveLogs(updatedLogs);

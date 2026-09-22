@@ -18,6 +18,20 @@ import {
   TEAM_UPDATED_EVENT,
 } from '../lib/teamMembers';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
+import {
+  ensureInitialBoardAndColumns,
+  loadOrSeedCards,
+  loadActivityLogs,
+  dbSaveCard,
+  dbDeleteCard,
+  dbBatchUpdateCards,
+  dbSaveColumn,
+  dbDeleteColumn,
+  dbResetBoardToDefault,
+  dbLogActivity,
+  mapDbCardToCard,
+  mapDbColumnToColumn,
+} from '../lib/supabaseService';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 const STORAGE_KEY_CARDS = 'webglow_kanban_cards_v1';
@@ -126,6 +140,47 @@ export function useRealtimeKanban() {
     }
   }, [currentUser]);
 
+  // Load initial board & cards from Supabase if configured (populates empty DB or loads shared cloud data)
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+    let isMounted = true;
+    async function syncFromCloud() {
+      try {
+        const [cloudCols, cloudCards, cloudActivity] = await Promise.all([
+          ensureInitialBoardAndColumns(),
+          loadOrSeedCards(),
+          loadActivityLogs(),
+        ]);
+        if (isMounted) {
+          if (cloudCols && cloudCols.length > 0) {
+            setColumns(cloudCols);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem(STORAGE_KEY_COLUMNS, JSON.stringify(cloudCols));
+            }
+          }
+          if (cloudCards && cloudCards.length > 0) {
+            setCards(cloudCards);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem(STORAGE_KEY_CARDS, JSON.stringify(cloudCards));
+            }
+          }
+          if (cloudActivity && cloudActivity.length > 0) {
+            setActivityLog(cloudActivity);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem(STORAGE_KEY_ACTIVITY, JSON.stringify(cloudActivity));
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Could not sync initial board state from Supabase:', err);
+      }
+    }
+    syncFromCloud();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Broadcast helper (BroadcastChannel + Supabase)
   const broadcastEvent = useCallback(
     (type: string, payload: unknown) => {
@@ -217,6 +272,7 @@ export function useRealtimeKanban() {
 
       if (broadcast) {
         broadcastEvent('ACTIVITY_LOGGED', newEvent);
+        dbLogActivity(newEvent);
       }
     },
     [broadcastEvent]
@@ -415,6 +471,76 @@ export function useRealtimeKanban() {
             handleIncomingEvent(payload.type, payload.payload);
           }
         })
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'cards' },
+          (payload) => {
+            if (payload.eventType === 'INSERT') {
+              const newCard = mapDbCardToCard(payload.new as Record<string, unknown>);
+              setCards((prev) => {
+                if (prev.some((c) => c.id === newCard.id)) return prev;
+                const next = [newCard, ...prev];
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem(STORAGE_KEY_CARDS, JSON.stringify(next));
+                }
+                return next;
+              });
+            } else if (payload.eventType === 'UPDATE') {
+              const updatedCard = mapDbCardToCard(payload.new as Record<string, unknown>);
+              setCards((prev) => {
+                const next = prev.map((c) => (c.id === updatedCard.id ? updatedCard : c));
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem(STORAGE_KEY_CARDS, JSON.stringify(next));
+                }
+                return next;
+              });
+            } else if (payload.eventType === 'DELETE') {
+              const oldId = String((payload.old as Record<string, unknown>).id);
+              setCards((prev) => {
+                const next = prev.filter((c) => c.id !== oldId);
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem(STORAGE_KEY_CARDS, JSON.stringify(next));
+                }
+                return next;
+              });
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'columns' },
+          (payload) => {
+            if (payload.eventType === 'INSERT') {
+              const newCol = mapDbColumnToColumn(payload.new as Record<string, unknown>);
+              setColumns((prev) => {
+                if (prev.some((c) => c.id === newCol.id)) return prev;
+                const next = [...prev, newCol];
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem(STORAGE_KEY_COLUMNS, JSON.stringify(next));
+                }
+                return next;
+              });
+            } else if (payload.eventType === 'UPDATE') {
+              const updatedCol = mapDbColumnToColumn(payload.new as Record<string, unknown>);
+              setColumns((prev) => {
+                const next = prev.map((c) => (c.id === updatedCol.id ? updatedCol : c));
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem(STORAGE_KEY_COLUMNS, JSON.stringify(next));
+                }
+                return next;
+              });
+            } else if (payload.eventType === 'DELETE') {
+              const oldId = String((payload.old as Record<string, unknown>).id);
+              setColumns((prev) => {
+                const next = prev.filter((c) => c.id !== oldId);
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem(STORAGE_KEY_COLUMNS, JSON.stringify(next));
+                }
+                return next;
+              });
+            }
+          }
+        )
         .on('presence', { event: 'sync' }, () => {
           const state = supaChannel?.presenceState<{
             id: string;
@@ -546,6 +672,7 @@ export function useRealtimeKanban() {
         ];
 
         saveCardsLocally(nextCards);
+        dbBatchUpdateCards(colCards);
 
         broadcastEvent('CARD_MOVED', {
           cardId,
@@ -570,6 +697,7 @@ export function useRealtimeKanban() {
       setCards((prev) => {
         const nextCards = prev.map((c) => (c.id === updatedCard.id ? updatedCard : c));
         saveCardsLocally(nextCards);
+        dbSaveCard(updatedCard);
         broadcastEvent('CARD_UPDATED', updatedCard);
         recordActivity('updated', `"${updatedCard.title}"`);
         return nextCards;
@@ -606,6 +734,7 @@ export function useRealtimeKanban() {
 
       const nextCards = [...cards, newCard];
       saveCardsLocally(nextCards);
+      dbSaveCard(newCard);
       broadcastEvent('CARD_CREATED', newCard);
       recordActivity('created', `"${newCard.title}" in ${colName}`);
       return newCard;
@@ -618,6 +747,7 @@ export function useRealtimeKanban() {
       const card = cards.find((c) => c.id === cardId);
       const nextCards = cards.filter((c) => c.id !== cardId);
       saveCardsLocally(nextCards);
+      dbDeleteCard(cardId);
       broadcastEvent('CARD_DELETED', { cardId });
       if (card) {
         recordActivity('deleted', `"${card.title}"`);
@@ -637,6 +767,7 @@ export function useRealtimeKanban() {
       };
       const nextCols = [...columns, newCol];
       saveColumnsLocally(nextCols);
+      dbSaveColumn(newCol);
       broadcastEvent('COLUMN_ADDED', newCol);
       recordActivity('added list', `"${newCol.title}"`);
     },
@@ -650,6 +781,7 @@ export function useRealtimeKanban() {
       const nextCards = cards.filter((c) => c.columnId !== columnId);
       saveColumnsLocally(nextCols);
       saveCardsLocally(nextCards);
+      dbDeleteColumn(columnId);
       broadcastEvent('COLUMN_DELETED', { columnId });
       if (col) {
         recordActivity('removed list', `"${col.title}"`);
@@ -691,6 +823,7 @@ export function useRealtimeKanban() {
   const resetToDemoData = useCallback(() => {
     saveCardsLocally(INITIAL_CARDS);
     saveColumnsLocally(INITIAL_COLUMNS);
+    dbResetBoardToDefault();
     recordActivity('reset board', 'to default agency template');
     broadcastEvent('RESET_BOARD', null);
   }, [recordActivity, broadcastEvent]);

@@ -22,6 +22,13 @@ import {
 } from 'lucide-react';
 import { ClientRecord, ClientType, ClientStatus } from '../types/kanban';
 import { INITIAL_CLIENTS } from '../lib/mockData';
+import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
+import {
+  loadOrSeedClients,
+  dbSaveClient,
+  dbDeleteClient,
+  mapDbClientToClientRecord,
+} from '../lib/supabaseService';
 
 const STORAGE_KEY_CLIENTS = 'webglow_clients_data_v1';
 
@@ -38,6 +45,78 @@ export const ClientsView: React.FC = () => {
     }
     return INITIAL_CLIENTS;
   });
+
+  // Load clients from Supabase cloud on mount (or seed empty DB)
+  React.useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+    let isMounted = true;
+    async function initCloudClients() {
+      try {
+        const cloudClients = await loadOrSeedClients();
+        if (isMounted && cloudClients && cloudClients.length > 0) {
+          setClients(cloudClients);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(STORAGE_KEY_CLIENTS, JSON.stringify(cloudClients));
+          }
+        }
+      } catch (err) {
+        console.warn('Could not load clients from Supabase:', err);
+      }
+    }
+    initCloudClients();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Subscribe to real-time Postgres changes for clients
+  React.useEffect(() => {
+    const supa = getSupabase();
+    if (!supa) return;
+
+    const channel = supa
+      .channel('webglow-clients-live')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'clients' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newClient = mapDbClientToClientRecord(payload.new as Record<string, unknown>);
+            setClients((prev) => {
+              if (prev.some((c) => c.id === newClient.id)) return prev;
+              const next = [newClient, ...prev];
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(STORAGE_KEY_CLIENTS, JSON.stringify(next));
+              }
+              return next;
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            const updated = mapDbClientToClientRecord(payload.new as Record<string, unknown>);
+            setClients((prev) => {
+              const next = prev.map((c) => (c.id === updated.id ? updated : c));
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(STORAGE_KEY_CLIENTS, JSON.stringify(next));
+              }
+              return next;
+            });
+          } else if (payload.eventType === 'DELETE') {
+            const oldId = String((payload.old as Record<string, unknown>).id);
+            setClients((prev) => {
+              const next = prev.filter((c) => c.id !== oldId);
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(STORAGE_KEY_CLIENTS, JSON.stringify(next));
+              }
+              return next;
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supa.removeChannel(channel);
+    };
+  }, []);
 
   // View Mode: Grid (Directory) or Monthly (Month-wise Closed Deals)
   const [activeViewMode, setActiveViewMode] = useState<'grid' | 'monthly'>('grid');
@@ -118,9 +197,10 @@ export const ClientsView: React.FC = () => {
     const retNum = parseFloat(formRetainer.replace(/[^0-9.]/g, '')) || undefined;
 
     if (editingClient) {
+      let updatedClientObj: ClientRecord | null = null;
       const updatedList = clients.map((c) => {
         if (c.id === editingClient.id) {
-          return {
+          const updated: ClientRecord = {
             ...c,
             name: formName.trim(),
             type: formType,
@@ -135,10 +215,15 @@ export const ClientsView: React.FC = () => {
             notes: formNotes.trim() || undefined,
             updatedAt: new Date().toISOString(),
           };
+          updatedClientObj = updated;
+          return updated;
         }
         return c;
       });
       saveClients(updatedList);
+      if (updatedClientObj) {
+        dbSaveClient(updatedClientObj);
+      }
     } else {
       const newClient: ClientRecord = {
         id: `client-${Date.now()}`,
@@ -158,6 +243,7 @@ export const ClientsView: React.FC = () => {
         updatedAt: new Date().toISOString(),
       };
       saveClients([newClient, ...clients]);
+      dbSaveClient(newClient);
     }
 
     setIsModalOpen(false);
@@ -167,6 +253,7 @@ export const ClientsView: React.FC = () => {
     if (window.confirm(`Are you sure you want to remove client "${name}"?`)) {
       const filtered = clients.filter((c) => c.id !== id);
       saveClients(filtered);
+      dbDeleteClient(id);
     }
   };
 
@@ -178,6 +265,10 @@ export const ClientsView: React.FC = () => {
     }
     const updated = clients.map((c) => (c.id === id ? { ...c, revenueCollected: revNum } : c));
     saveClients(updated);
+    const target = updated.find((c) => c.id === id);
+    if (target) {
+      dbSaveClient(target);
+    }
     setInlineEditId(null);
   };
 

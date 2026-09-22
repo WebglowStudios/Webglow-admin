@@ -14,10 +14,10 @@ import {
   Code,
 } from 'lucide-react';
 import { DailyWorkLog, UserPresence, AgencyMember } from '../types/kanban';
-import { INITIAL_WORK_LOGS } from '../lib/mockData';
 import {
   getStoredTeamMembers,
   deleteStoredTeamMember,
+  addStoredTeamMember,
   syncTeamMembersFromCloud,
   TEAM_UPDATED_EVENT,
 } from '../lib/teamMembers';
@@ -70,7 +70,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
     };
   }, []);
 
-  // Fetch from Supabase cloud on mount (or seed empty DB)
+  // Fetch from Supabase cloud on mount
   React.useEffect(() => {
     if (!isSupabaseConfigured()) return;
     let isMounted = true;
@@ -81,7 +81,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
           syncTeamMembersFromCloud(),
         ]);
         if (isMounted) {
-          if (cloudLogs && cloudLogs.length > 0) {
+          if (Array.isArray(cloudLogs)) {
             setLogs(cloudLogs);
             if (typeof window !== 'undefined') {
               localStorage.setItem(STORAGE_KEY_WORK_LOGS, JSON.stringify(cloudLogs));
@@ -177,12 +177,12 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem(STORAGE_KEY_WORK_LOGS);
-        if (saved) return JSON.parse(saved);
+        if (saved !== null) return JSON.parse(saved);
       } catch (err) {
         console.error('Error reading daily work logs from localStorage', err);
       }
     }
-    return INITIAL_WORK_LOGS;
+    return [];
   });
 
   // Selected member filter ('all' or memberId)
@@ -208,9 +208,9 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
   };
 
   const handleResetSampleData = async () => {
-    if (window.confirm('Reset all work logs to default sample week data?')) {
-      const resetLogs = await dbResetWorkLogs();
-      saveLogs(resetLogs);
+    if (window.confirm('Are you sure you want to clear all work logs from the database?')) {
+      await dbResetWorkLogs();
+      saveLogs([]);
     }
   };
 
@@ -219,6 +219,18 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
     if (!formTasks.trim()) {
       alert('Please enter what you did today.');
       return;
+    }
+
+    // Ensure current user is in registered team members
+    if (!teamMembers.some((m) => m.id === currentUser.id)) {
+      const newMember: AgencyMember = {
+        id: currentUser.id,
+        name: currentUser.name,
+        role: currentUser.role,
+        avatarColor: currentUser.avatarColor || '#0c66e4',
+      };
+      addStoredTeamMember(newMember);
+      setTeamMembers((prev) => [...prev, newMember]);
     }
 
     const hours = parseFloat(formHours) || 0;
@@ -277,33 +289,17 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
     }
   };
 
-  // Match team members strictly with cloud team members, plus any member associated with existing logs
-  const memberMap = new Map<string, AgencyMember>();
-  teamMembers.forEach((m) => memberMap.set(m.id, m));
-  logs.forEach((l) => {
-    if (!memberMap.has(l.memberId)) {
-      memberMap.set(l.memberId, {
-        id: l.memberId,
-        name: l.memberName,
-        role: l.memberRole,
-        avatarColor: l.avatarColor,
-      });
-    }
-  });
-  if (!memberMap.has(currentUser.id)) {
-    memberMap.set(currentUser.id, {
-      id: currentUser.id,
-      name: currentUser.name,
-      role: currentUser.role,
-      avatarColor: currentUser.avatarColor,
-    });
-  }
-  const allTeamMembers = Array.from(memberMap.values());
+  // Team members strictly driven by registered team members in database
+  const allTeamMembers = teamMembers;
+
+  // Filter logs so only logs for active team members are counted
+  const activeMemberIds = new Set(allTeamMembers.map((m) => m.id));
+  const activeLogs = logs.filter((l) => activeMemberIds.has(l.memberId));
 
   // Overall Weekly Totals
-  const totalTeamHours = logs.reduce((sum, l) => sum + (l.hoursWorked || 0), 0);
-  const totalTeamDms = logs.reduce((sum, l) => sum + (l.dmsSent || 0), 0);
-  const totalTeamCalls = logs.reduce((sum, l) => sum + (l.callsDone || 0), 0);
+  const totalTeamHours = activeLogs.reduce((sum, l) => sum + (l.hoursWorked || 0), 0);
+  const totalTeamDms = activeLogs.reduce((sum, l) => sum + (l.dmsSent || 0), 0);
+  const totalTeamCalls = activeLogs.reduce((sum, l) => sum + (l.callsDone || 0), 0);
 
   // Filtered members for the segregated view
   const visibleMembers =
@@ -632,7 +628,16 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
 
         {/* Segregated List of Each Member */}
         <div className="space-y-6">
-          {visibleMembers.map((member) => {
+          {visibleMembers.length === 0 ? (
+            <div className="p-8 rounded-2xl bg-[#101214]/80 border border-dashed border-[#282e33] text-center space-y-2">
+              <Users className="w-8 h-8 text-neutral-500 mx-auto" />
+              <h3 className="text-sm font-semibold text-white">No Team Members Registered</h3>
+              <p className="text-xs text-neutral-400 max-w-sm mx-auto">
+                No team members exist yet. Add team members in the Collaborator Profile & Team modal (or submit your daily work log above) to begin tracking attendance.
+              </p>
+            </div>
+          ) : (
+            visibleMembers.map((member) => {
             // Get all logs for this member, sorted by date descending
             const memberLogs = logs
               .filter((l) => l.memberId === member.id)
@@ -781,7 +786,8 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
                 </div>
               </div>
             );
-          })}
+          })
+        )}
         </div>
       </div>
     </div>

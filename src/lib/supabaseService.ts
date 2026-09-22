@@ -246,11 +246,11 @@ export async function ensureInitialBoardAndColumns(): Promise<KanbanColumn[]> {
 }
 
 /**
- * Fetch cards from Supabase, or seed initial cards if table is empty
+ * Fetch cards from Supabase (does not auto-seed dummy cards)
  */
 export async function loadOrSeedCards(): Promise<KanbanCard[]> {
   const supa = getSupabase();
-  if (!supa) return INITIAL_CARDS;
+  if (!supa) return [];
 
   try {
     const { data: cards, error } = await supa
@@ -259,33 +259,23 @@ export async function loadOrSeedCards(): Promise<KanbanCard[]> {
       .eq('board_id', DEFAULT_BOARD_ID)
       .order('order_index', { ascending: true });
 
-    if (!error && cards && cards.length > 0) {
+    if (!error && Array.isArray(cards)) {
       return cards.map(mapDbCardToCard);
     }
-
-    // Table is empty, seed INITIAL_CARDS
-    const dbCards = INITIAL_CARDS.map((c) => mapCardToDb(c, DEFAULT_BOARD_ID));
-    const { data: inserted, error: insertErr } = await supa
-      .from('cards')
-      .upsert(dbCards, { onConflict: 'id' })
-      .select('*');
-
-    if (!insertErr && inserted && inserted.length > 0) {
-      return inserted.map(mapDbCardToCard);
-    }
   } catch (err) {
-    console.error('Error loading or seeding cards in Supabase:', err);
+    console.error('Error loading cards from Supabase:', err);
   }
 
-  return INITIAL_CARDS;
+  return [];
 }
+export const loadCards = loadOrSeedCards;
 
 /**
- * Fetch work logs from Supabase, or seed initial logs if table is empty
+ * Fetch work logs from Supabase (does not auto-seed dummy work logs)
  */
 export async function loadOrSeedWorkLogs(): Promise<DailyWorkLog[]> {
   const supa = getSupabase();
-  if (!supa) return INITIAL_WORK_LOGS;
+  if (!supa) return [];
 
   try {
     const { data: logs, error } = await supa
@@ -293,33 +283,23 @@ export async function loadOrSeedWorkLogs(): Promise<DailyWorkLog[]> {
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (!error && logs && logs.length > 0) {
+    if (!error && Array.isArray(logs)) {
       return logs.map(mapDbLogToDailyWorkLog);
     }
-
-    // Seed INITIAL_WORK_LOGS
-    const dbLogs = INITIAL_WORK_LOGS.map(mapDailyWorkLogToDb);
-    const { data: inserted, error: insertErr } = await supa
-      .from('daily_work_logs')
-      .upsert(dbLogs, { onConflict: 'id' })
-      .select('*');
-
-    if (!insertErr && inserted && inserted.length > 0) {
-      return inserted.map(mapDbLogToDailyWorkLog);
-    }
   } catch (err) {
-    console.error('Error loading or seeding daily work logs in Supabase:', err);
+    console.error('Error loading daily work logs from Supabase:', err);
   }
 
-  return INITIAL_WORK_LOGS;
+  return [];
 }
+export const loadWorkLogs = loadOrSeedWorkLogs;
 
 /**
- * Fetch clients from Supabase, or seed initial clients if table is empty
+ * Fetch clients from Supabase (does not auto-seed dummy clients)
  */
 export async function loadOrSeedClients(): Promise<ClientRecord[]> {
   const supa = getSupabase();
-  if (!supa) return INITIAL_CLIENTS;
+  if (!supa) return [];
 
   try {
     const { data: clients, error } = await supa
@@ -327,33 +307,23 @@ export async function loadOrSeedClients(): Promise<ClientRecord[]> {
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (!error && clients && clients.length > 0) {
+    if (!error && Array.isArray(clients)) {
       return clients.map(mapDbClientToClientRecord);
     }
-
-    // Seed INITIAL_CLIENTS
-    const dbClients = INITIAL_CLIENTS.map(mapClientToDb);
-    const { data: inserted, error: insertErr } = await supa
-      .from('clients')
-      .upsert(dbClients, { onConflict: 'id' })
-      .select('*');
-
-    if (!insertErr && inserted && inserted.length > 0) {
-      return inserted.map(mapDbClientToClientRecord);
-    }
   } catch (err) {
-    console.error('Error loading or seeding clients in Supabase:', err);
+    console.error('Error loading clients from Supabase:', err);
   }
 
-  return INITIAL_CLIENTS;
+  return [];
 }
+export const loadClients = loadOrSeedClients;
 
 /**
- * Fetch team members from Supabase
+ * Fetch team members from Supabase (does not auto-seed dummy members)
  */
 export async function loadOrSeedTeamMembers(): Promise<AgencyMember[]> {
   const supa = getSupabase();
-  if (!supa) return AGENCY_MEMBERS.slice(0, 3);
+  if (!supa) return [];
 
   try {
     const { data: members, error } = await supa
@@ -370,6 +340,7 @@ export async function loadOrSeedTeamMembers(): Promise<AgencyMember[]> {
 
   return [];
 }
+export const loadTeamMembers = loadOrSeedTeamMembers;
 
 /**
  * Fetch tag options from Supabase, or seed default tags if empty
@@ -503,20 +474,14 @@ export async function dbDeleteWorkLog(logId: string): Promise<void> {
 
 export async function dbResetWorkLogs(): Promise<DailyWorkLog[]> {
   const supa = getSupabase();
-  if (!supa) return INITIAL_WORK_LOGS;
+  if (!supa) return [];
   try {
-    // Delete all existing logs
     await supa.from('daily_work_logs').delete().neq('id', 'non-existent-id');
-    // Reinsert initial logs
-    const dbLogs = INITIAL_WORK_LOGS.map(mapDailyWorkLogToDb);
-    const { data } = await supa.from('daily_work_logs').insert(dbLogs).select('*');
-    if (data && data.length > 0) {
-      return data.map(mapDbLogToDailyWorkLog);
-    }
+    return [];
   } catch (e) {
     console.warn('Supabase dbResetWorkLogs error:', e);
   }
-  return INITIAL_WORK_LOGS;
+  return [];
 }
 
 // --- Clients ---
@@ -600,26 +565,22 @@ export async function dbLogActivity(event: ActivityEvent, boardId = DEFAULT_BOAR
 // --- Board Reset ---
 export async function dbResetBoardToDefault(): Promise<{ cards: KanbanCard[]; columns: KanbanColumn[] }> {
   const supa = getSupabase();
-  if (!supa) return { cards: INITIAL_CARDS, columns: INITIAL_COLUMNS };
+  if (!supa) return { cards: [], columns: INITIAL_COLUMNS };
 
   try {
     // 1. Delete all cards
     await supa.from('cards').delete().eq('board_id', DEFAULT_BOARD_ID);
 
-    // 2. Delete all columns
-    await supa.from('columns').delete().eq('board_id', DEFAULT_BOARD_ID);
+    // 2. Ensure columns exist
+    const { data: cols } = await supa.from('columns').select('*').eq('board_id', DEFAULT_BOARD_ID);
+    if (!cols || cols.length === 0) {
+      const dbCols = INITIAL_COLUMNS.map((c) => mapColumnToDb(c, DEFAULT_BOARD_ID));
+      await supa.from('columns').insert(dbCols);
+    }
 
-    // 3. Reinsert default columns
-    const dbCols = INITIAL_COLUMNS.map((c) => mapColumnToDb(c, DEFAULT_BOARD_ID));
-    await supa.from('columns').insert(dbCols);
-
-    // 4. Reinsert default cards
-    const dbCards = INITIAL_CARDS.map((c) => mapCardToDb(c, DEFAULT_BOARD_ID));
-    await supa.from('cards').insert(dbCards);
-
-    return { cards: INITIAL_CARDS, columns: INITIAL_COLUMNS };
+    return { cards: [], columns: INITIAL_COLUMNS };
   } catch (e) {
     console.warn('Supabase dbResetBoardToDefault error:', e);
-    return { cards: INITIAL_CARDS, columns: INITIAL_COLUMNS };
+    return { cards: [], columns: INITIAL_COLUMNS };
   }
 }

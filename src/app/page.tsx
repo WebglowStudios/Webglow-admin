@@ -12,7 +12,6 @@ import { Sidebar } from '../components/Sidebar';
 import { AttendanceView } from '../components/AttendanceView';
 import { ClientsView } from '../components/ClientsView';
 import { KanbanCard, ActiveNavView } from '../types/kanban';
-import { INITIAL_CLIENTS } from '../lib/mockData';
 import { getStoredTeamMembers, TEAM_UPDATED_EVENT } from '../lib/teamMembers';
 
 // Default evening river ghats background resembling the screenshot
@@ -95,19 +94,34 @@ export default function Home() {
 
   // Dynamic team members count for sidebar pill
   const [teamCount, setTeamCount] = useState<number>(() => getStoredTeamMembers().length);
+  // Dynamic total revenue for sidebar pill
+  const [totalRevenue, setTotalRevenue] = useState<number>(0);
 
   React.useEffect(() => {
     const handleUpdate = () => {
       setTeamCount(getStoredTeamMembers().length);
+      if (typeof window !== 'undefined') {
+        try {
+          const saved = localStorage.getItem('webglow_clients_data_v1');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) {
+              setTotalRevenue(parsed.reduce((sum, c) => sum + (Number(c.revenueCollected) || 0), 0));
+              return;
+            }
+          }
+        } catch {}
+      }
+      setTotalRevenue(0);
     };
+    handleUpdate();
     window.addEventListener(TEAM_UPDATED_EVENT, handleUpdate);
+    window.addEventListener('storage', handleUpdate);
     return () => {
       window.removeEventListener(TEAM_UPDATED_EVENT, handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
     };
   }, []);
-
-  // Compute total revenue for sidebar pill
-  const totalRevenue = INITIAL_CLIENTS.reduce((sum, c) => sum + c.revenueCollected, 0);
 
   return (
     <div
@@ -122,7 +136,7 @@ export default function Home() {
         activeView={activeView}
         onSelectView={setActiveView}
         leadsCount={cards.length}
-        presentCount={Math.max(1, teamCount)}
+        presentCount={teamCount}
         totalRevenue={totalRevenue}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}

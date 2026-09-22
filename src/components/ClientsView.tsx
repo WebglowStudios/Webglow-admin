@@ -21,7 +21,6 @@ import {
   ArrowUpRight,
 } from 'lucide-react';
 import { ClientRecord, ClientType, ClientStatus } from '../types/kanban';
-import { INITIAL_CLIENTS } from '../lib/mockData';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
 import {
   loadOrSeedClients,
@@ -38,22 +37,22 @@ export const ClientsView: React.FC = () => {
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem(STORAGE_KEY_CLIENTS);
-        if (saved) return JSON.parse(saved);
+        if (saved !== null) return JSON.parse(saved);
       } catch (err) {
         console.error('Failed to load clients from localStorage', err);
       }
     }
-    return INITIAL_CLIENTS;
+    return [];
   });
 
-  // Load clients from Supabase cloud on mount (or seed empty DB)
+  // Load clients from Supabase cloud on mount
   React.useEffect(() => {
     if (!isSupabaseConfigured()) return;
     let isMounted = true;
     async function initCloudClients() {
       try {
         const cloudClients = await loadOrSeedClients();
-        if (isMounted && cloudClients && cloudClients.length > 0) {
+        if (isMounted && Array.isArray(cloudClients)) {
           setClients(cloudClients);
           if (typeof window !== 'undefined') {
             localStorage.setItem(STORAGE_KEY_CLIENTS, JSON.stringify(cloudClients));
@@ -273,8 +272,8 @@ export const ClientsView: React.FC = () => {
   };
 
   const handleResetSampleData = () => {
-    if (window.confirm('Reset clients to initial sample agency accounts?')) {
-      saveClients(INITIAL_CLIENTS);
+    if (window.confirm('Clear all clients from the list?')) {
+      saveClients([]);
     }
   };
 

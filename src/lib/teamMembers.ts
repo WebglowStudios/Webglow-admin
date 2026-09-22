@@ -42,7 +42,7 @@ export function getStoredTeamMembers(): AgencyMember[] {
       console.error('Failed to read team members from localStorage', err);
     }
   }
-  return AGENCY_MEMBERS.slice(0, 3);
+  return [];
 }
 
 /**

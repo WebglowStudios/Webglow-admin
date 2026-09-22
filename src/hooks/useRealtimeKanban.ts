@@ -46,15 +46,16 @@ const STORAGE_KEY_ACTIVITY = 'webglow_kanban_activity_v1';
 function getInitialCards(): KanbanCard[] {
   if (typeof window !== 'undefined') {
     const saved = localStorage.getItem(STORAGE_KEY_CARDS);
-    if (saved) {
+    if (saved !== null) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
       } catch {
         // fallback
       }
     }
   }
-  return INITIAL_CARDS;
+  return [];
 }
 
 function getInitialColumns(): KanbanColumn[] {
@@ -201,19 +202,19 @@ export function useRealtimeKanban() {
           syncTeamMembersFromCloud(),
         ]);
         if (isMounted) {
-          if (cloudCols && cloudCols.length > 0) {
+          if (Array.isArray(cloudCols) && cloudCols.length > 0) {
             setColumns(cloudCols);
             if (typeof window !== 'undefined') {
               localStorage.setItem(STORAGE_KEY_COLUMNS, JSON.stringify(cloudCols));
             }
           }
-          if (cloudCards && cloudCards.length > 0) {
+          if (Array.isArray(cloudCards)) {
             setCards(cloudCards);
             if (typeof window !== 'undefined') {
               localStorage.setItem(STORAGE_KEY_CARDS, JSON.stringify(cloudCards));
             }
           }
-          if (cloudActivity && cloudActivity.length > 0) {
+          if (Array.isArray(cloudActivity)) {
             setActivityLog(cloudActivity);
             if (typeof window !== 'undefined') {
               localStorage.setItem(STORAGE_KEY_ACTIVITY, JSON.stringify(cloudActivity));
@@ -462,10 +463,10 @@ export function useRealtimeKanban() {
           break;
         }
         case 'RESET_BOARD': {
-          setCards(INITIAL_CARDS);
+          setCards([]);
           setColumns(INITIAL_COLUMNS);
           if (typeof window !== 'undefined') {
-            localStorage.setItem(STORAGE_KEY_CARDS, JSON.stringify(INITIAL_CARDS));
+            localStorage.setItem(STORAGE_KEY_CARDS, JSON.stringify([]));
             localStorage.setItem(STORAGE_KEY_COLUMNS, JSON.stringify(INITIAL_COLUMNS));
           }
           break;
@@ -941,10 +942,10 @@ export function useRealtimeKanban() {
   );
 
   const resetToDemoData = useCallback(() => {
-    saveCardsLocally(INITIAL_CARDS);
+    saveCardsLocally([]);
     saveColumnsLocally(INITIAL_COLUMNS);
     dbResetBoardToDefault();
-    recordActivity('reset board', 'to default agency template');
+    recordActivity('cleared board cards', 'and reset column lists');
     broadcastEvent('RESET_BOARD', null);
   }, [recordActivity, broadcastEvent]);
 

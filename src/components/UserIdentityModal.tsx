@@ -51,16 +51,25 @@ export const UserIdentityModal: React.FC<UserIdentityModalProps> = ({
 
   // Keep members in sync with external updates & cloud
   useEffect(() => {
-    const handleUpdate = () => {
-      setMembers(getStoredTeamMembers());
+    let isMounted = true;
+    const handleUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent<{ members?: AgencyMember[] }>;
+      if (customEvent.detail?.members) {
+        setMembers(customEvent.detail.members);
+      } else {
+        setMembers(getStoredTeamMembers());
+      }
     };
     window.addEventListener(TEAM_UPDATED_EVENT, handleUpdate);
+
     syncTeamMembersFromCloud().then((cloudMembers) => {
-      if (cloudMembers && cloudMembers.length > 0) {
+      if (isMounted && Array.isArray(cloudMembers)) {
         setMembers(cloudMembers);
       }
     });
+
     return () => {
+      isMounted = false;
       window.removeEventListener(TEAM_UPDATED_EVENT, handleUpdate);
     };
   }, []);
@@ -92,16 +101,15 @@ export const UserIdentityModal: React.FC<UserIdentityModalProps> = ({
       const remaining = deleteStoredTeamMember(member.id);
       setMembers(remaining);
       if (name === member.name || selectedMemberId === member.id) {
-        const next = remaining[0] || {
-          id: 'user-admin',
-          name: 'Studio Admin',
-          role: 'Agency Lead',
-          avatarColor: '#0c66e4',
-        };
-        setSelectedMemberId(next.id);
-        setName(next.name);
-        setRole(next.role);
-        setColor(next.avatarColor);
+        if (remaining.length > 0) {
+          const next = remaining[0];
+          setSelectedMemberId(next.id);
+          setName(next.name);
+          setRole(next.role);
+          setColor(next.avatarColor);
+        } else {
+          setSelectedMemberId(`user-${Date.now().toString(36)}`);
+        }
       }
     }
   };

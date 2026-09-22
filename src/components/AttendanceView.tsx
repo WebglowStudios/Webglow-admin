@@ -87,7 +87,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ currentUser }) =
               localStorage.setItem(STORAGE_KEY_WORK_LOGS, JSON.stringify(cloudLogs));
             }
           }
-          if (cloudMembers && cloudMembers.length > 0) {
+          if (Array.isArray(cloudMembers)) {
             setTeamMembers(cloudMembers);
           }
         }

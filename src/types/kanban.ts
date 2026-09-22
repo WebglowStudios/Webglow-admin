@@ -20,6 +20,7 @@ export interface UserPresence {
   lastActive: number;
   viewingCardId?: string | null;
   activeColumnId?: string | null;
+  sessionId?: string;
 }
 
 export interface AgencyMember {

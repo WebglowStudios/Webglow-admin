@@ -349,7 +349,7 @@ export async function loadOrSeedClients(): Promise<ClientRecord[]> {
 }
 
 /**
- * Fetch team members from Supabase, or seed default members if table is empty
+ * Fetch team members from Supabase
  */
 export async function loadOrSeedTeamMembers(): Promise<AgencyMember[]> {
   const supa = getSupabase();
@@ -361,14 +361,14 @@ export async function loadOrSeedTeamMembers(): Promise<AgencyMember[]> {
       .select('*')
       .order('created_at', { ascending: true });
 
-    if (!error && members && members.length > 0) {
+    if (!error && Array.isArray(members)) {
       return members.map(mapDbMemberToAgencyMember);
     }
   } catch (err) {
     console.error('Error loading team members from Supabase:', err);
   }
 
-  return AGENCY_MEMBERS.slice(0, 3);
+  return [];
 }
 
 /**

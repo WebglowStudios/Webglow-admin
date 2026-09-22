@@ -54,23 +54,26 @@ export const Header: React.FC<HeaderProps> = ({
   const [showBgMenu, setShowBgMenu] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [teamMemberIds, setTeamMemberIds] = useState<Set<string>>(
-    () => new Set(getStoredTeamMembers().map((m) => m.id))
-  );
+  // Combine active users ensuring current user is present and all remote active collaborators are shown
+  const otherUsers = activeUsers.filter((u) => {
+    if (currentUser.sessionId && u.sessionId) {
+      return u.sessionId !== currentUser.sessionId;
+    }
+    return u.id !== currentUser.id || u.name !== currentUser.name;
+  });
 
-  React.useEffect(() => {
-    const handleUpdate = () => {
-      setTeamMemberIds(new Set(getStoredTeamMembers().map((m) => m.id)));
-    };
-    window.addEventListener(TEAM_UPDATED_EVENT, handleUpdate);
-    return () => window.removeEventListener(TEAM_UPDATED_EVENT, handleUpdate);
-  }, []);
+  // Deduplicate remote users by unique key (id or name)
+  const seenUserKeys = new Set<string>();
+  const uniqueOtherUsers: UserPresence[] = [];
+  for (const u of otherUsers) {
+    const key = u.id && u.id.trim() ? u.id : u.name.toLowerCase().trim();
+    if (!seenUserKeys.has(key)) {
+      seenUserKeys.add(key);
+      uniqueOtherUsers.push(u);
+    }
+  }
 
-  // Combine active users ensuring current user is present and deleted members vanish
-  const allOnline = [
-    currentUser,
-    ...activeUsers.filter((u) => u.id !== currentUser.id && teamMemberIds.has(u.id)),
-  ];
+  const allOnline: UserPresence[] = [currentUser, ...uniqueOtherUsers];
 
   const handleCopyLink = () => {
     if (typeof window !== 'undefined') {
@@ -206,19 +209,25 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Active Collaborator Avatars */}
           <div className="flex items-center bg-[#101214]/80 border border-white/10 rounded-full px-2.5 py-1">
             <div className="flex -space-x-2 mr-2">
-              {allOnline.slice(0, 5).map((user) => (
-                <div
-                  key={user.id}
-                  title={`${user.name} (${user.role})${user.id === currentUser.id ? ' - You' : ''}`}
-                  style={{ backgroundColor: user.avatarColor }}
-                  className="relative w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white ring-2 ring-[#101214] shadow-xs cursor-pointer transition-transform hover:scale-110 hover:z-10"
-                >
-                  {user.name.charAt(0).toUpperCase()}
-                  {user.id === currentUser.id && (
-                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-sky-400 rounded-full ring-1 ring-[#101214]" />
-                  )}
-                </div>
-              ))}
+              {allOnline.slice(0, 5).map((user, idx) => {
+                const isSelf =
+                  (currentUser.sessionId && user.sessionId && user.sessionId === currentUser.sessionId) ||
+                  (user.id === currentUser.id && user.name === currentUser.name);
+
+                return (
+                  <div
+                    key={user.sessionId || user.id || idx}
+                    title={`${user.name} (${user.role})${isSelf ? ' - You' : ''}`}
+                    style={{ backgroundColor: user.avatarColor }}
+                    className="relative w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white ring-2 ring-[#101214] shadow-xs cursor-pointer transition-transform hover:scale-110 hover:z-10"
+                  >
+                    {user.name.charAt(0).toUpperCase()}
+                    {isSelf && (
+                      <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-sky-400 rounded-full ring-1 ring-[#101214]" />
+                    )}
+                  </div>
+                );
+              })}
               {allOnline.length > 5 && (
                 <div className="w-6 h-6 rounded-full bg-[#22272b] ring-2 ring-[#101214] flex items-center justify-center text-[9px] text-neutral-300 font-semibold">
                   +{allOnline.length - 5}

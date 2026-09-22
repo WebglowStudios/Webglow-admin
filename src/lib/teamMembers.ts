@@ -32,9 +32,9 @@ export function getStoredTeamMembers(): AgencyMember[] {
   if (typeof window !== 'undefined') {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_TEAM_MEMBERS);
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           return parsed;
         }
       }
@@ -51,7 +51,7 @@ export function getStoredTeamMembers(): AgencyMember[] {
 export async function syncTeamMembersFromCloud(): Promise<AgencyMember[]> {
   try {
     const cloudMembers = await loadOrSeedTeamMembers();
-    if (cloudMembers && cloudMembers.length > 0) {
+    if (Array.isArray(cloudMembers)) {
       if (typeof window !== 'undefined') {
         localStorage.setItem(STORAGE_KEY_TEAM_MEMBERS, JSON.stringify(cloudMembers));
         window.dispatchEvent(
@@ -102,12 +102,84 @@ export function addStoredTeamMember(member: AgencyMember): AgencyMember[] {
 }
 
 /**
+ * Clean up local storage and state for a remotely deleted member without re-triggering broadcasts or DB deletes
+ */
+export function applyRemoteTeamMemberDeletion(memberId: string): AgencyMember[] {
+  const current = getStoredTeamMembers();
+  const updated = current.filter((m) => m.id !== memberId);
+
+  if (typeof window !== 'undefined') {
+    // 1. Clean up associated work logs
+    try {
+      const savedLogs = localStorage.getItem(STORAGE_KEY_WORK_LOGS);
+      if (savedLogs) {
+        const logs: DailyWorkLog[] = JSON.parse(savedLogs);
+        const filteredLogs = logs.filter((l) => l.memberId !== memberId);
+        localStorage.setItem(STORAGE_KEY_WORK_LOGS, JSON.stringify(filteredLogs));
+      }
+    } catch (err) {
+      console.error('Failed to clean up logs for deleted member', err);
+    }
+
+    // 2. Unassign from cards
+    try {
+      const savedCards = localStorage.getItem(STORAGE_KEY_CARDS);
+      if (savedCards) {
+        const cards: KanbanCard[] = JSON.parse(savedCards);
+        const updatedCards = cards.map((c) => ({
+          ...c,
+          assignees: (c.assignees || []).filter((a) => a.id !== memberId),
+        }));
+        localStorage.setItem(STORAGE_KEY_CARDS, JSON.stringify(updatedCards));
+      }
+    } catch (err) {
+      console.error('Failed to unassign deleted member from cards', err);
+    }
+
+    // 3. Fallback persona if active user was this deleted member
+    try {
+      const savedUser = localStorage.getItem(STORAGE_KEY_USER);
+      if (savedUser) {
+        const currentUser: UserPresence = JSON.parse(savedUser);
+        if (currentUser.id === memberId || currentUser.name === current.find((m) => m.id === memberId)?.name) {
+          const fallback = updated[0] || {
+            id: 'user-admin',
+            name: 'Studio Admin',
+            role: 'Agency Lead',
+            avatarColor: '#0c66e4',
+          };
+          const newCurrent: UserPresence = {
+            ...currentUser,
+            id: fallback.id,
+            name: fallback.name,
+            role: fallback.role,
+            avatarColor: fallback.avatarColor,
+          };
+          localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(newCurrent));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to update active user persona', err);
+    }
+
+    localStorage.setItem(STORAGE_KEY_TEAM_MEMBERS, JSON.stringify(updated));
+    window.dispatchEvent(
+      new CustomEvent(TEAM_UPDATED_EVENT, {
+        detail: { members: updated, action: 'remote_sync', memberId },
+      })
+    );
+  }
+
+  return updated;
+}
+
+/**
  * Delete a team member and cleanly cascade everywhere:
  * 1. Remove from team members list
  * 2. Purge their daily work logs from localStorage
  * 3. Unassign them from any Kanban cards in localStorage
  * 4. Switch current user persona if the deleted member was active
- * 5. Broadcast TEAM_UPDATED_EVENT with memberId
+ * 5. Broadcast TEAM_UPDATED_EVENT with memberId and delete from Supabase
  */
 export function deleteStoredTeamMember(memberId: string): AgencyMember[] {
   const current = getStoredTeamMembers();

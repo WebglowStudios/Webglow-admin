@@ -15,6 +15,7 @@ import {
 import {
   getStoredTeamMembers,
   deleteStoredTeamMember,
+  applyRemoteTeamMemberDeletion,
   saveStoredTeamMembers,
   syncTeamMembersFromCloud,
   TEAM_UPDATED_EVENT,
@@ -90,8 +91,13 @@ function getInitialUser(): UserPresence {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && parsed.id && parsed.name) {
-          return parsed;
+        if (parsed && parsed.name) {
+          return {
+            ...parsed,
+            id: parsed.id || `user-${Date.now().toString(36)}`,
+            lastActive: Date.now(),
+            viewingCardId: null,
+          };
         }
       } catch {
         // ignore
@@ -102,7 +108,7 @@ function getInitialUser(): UserPresence {
   const defaultMember =
     members.length > 0
       ? members[0]
-      : { id: 'user-1', name: 'Leo Vance', role: 'Lead Architect', avatarColor: '#3b82f6' };
+      : { id: 'user-susheel', name: 'Susheel Kumar', role: 'Founder & Tech Lead', avatarColor: '#0c66e4' };
   return {
     id: defaultMember.id,
     name: defaultMember.name,
@@ -133,16 +139,52 @@ export function useRealtimeKanban() {
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
   const supabaseRef = useRef(getSupabase());
   const currentUserRef = useRef<UserPresence>(currentUser);
+  const supaChannelRef = useRef<RealtimeChannel | null>(null);
 
-  // Keep ref up to date outside render
+  // Persistent session identifier unique to this browser tab / window
+  const sessionIdRef = useRef<string>('');
+  if (!sessionIdRef.current) {
+    if (typeof window !== 'undefined') {
+      let sid = sessionStorage.getItem('webglow_session_id');
+      if (!sid) {
+        sid = `sess_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`;
+        sessionStorage.setItem('webglow_session_id', sid);
+      }
+      sessionIdRef.current = sid;
+    } else {
+      sessionIdRef.current = 'sess_ssr';
+    }
+  }
+
+  // Keep ref up to date and re-track presence when currentUser changes
   useEffect(() => {
     currentUserRef.current = currentUser;
-  }, [currentUser]);
-
-  // Save current user to localStorage
-  useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(currentUser));
+    }
+
+    const payload: UserPresence = {
+      sessionId: sessionIdRef.current,
+      id: currentUser.id,
+      name: currentUser.name,
+      role: currentUser.role,
+      avatarColor: currentUser.avatarColor,
+      viewingCardId: currentUser.viewingCardId,
+      lastActive: Date.now(),
+    };
+
+    if (supaChannelRef.current) {
+      supaChannelRef.current.track(payload).catch(() => {});
+    }
+
+    if (broadcastChannelRef.current) {
+      try {
+        broadcastChannelRef.current.postMessage({
+          type: 'USER_HEARTBEAT',
+          payload,
+          senderId: currentUser.id,
+        });
+      } catch {}
     }
   }, [currentUser]);
 
@@ -291,8 +333,15 @@ export function useRealtimeKanban() {
       switch (type) {
         case 'USER_HEARTBEAT': {
           const user = payload as UserPresence;
+          if (user.sessionId && user.sessionId === sessionIdRef.current) {
+            return;
+          }
           setActiveUsers((prev) => {
-            const idx = prev.findIndex((u) => u.id === user.id);
+            const idx = prev.findIndex(
+              (u) =>
+                (user.sessionId && u.sessionId === user.sessionId) ||
+                (u.id === user.id && u.name === user.name)
+            );
             if (idx >= 0) {
               const copy = [...prev];
               copy[idx] = { ...user, lastActive: Date.now() };
@@ -424,7 +473,7 @@ export function useRealtimeKanban() {
         case 'TEAM_MEMBER_DELETED': {
           const { memberId } = payload as { memberId: string };
           if (memberId) {
-            deleteStoredTeamMember(memberId);
+            applyRemoteTeamMemberDeletion(memberId);
             setActiveUsers((prev) => prev.filter((u) => u.id !== memberId));
             setCards((prev) =>
               prev.map((c) => ({
@@ -467,10 +516,11 @@ export function useRealtimeKanban() {
       supaChannel = supa.channel('webglow-kanban-live', {
         config: {
           presence: {
-            key: currentUserRef.current.id,
+            key: sessionIdRef.current,
           },
         },
       });
+      supaChannelRef.current = supaChannel;
 
       supaChannel
         .on('broadcast', { event: 'kanban_message' }, ({ payload }) => {
@@ -565,67 +615,90 @@ export function useRealtimeKanban() {
               saveStoredTeamMembers(next, 'update', updated.id);
             } else if (payload.eventType === 'DELETE') {
               const delId = String((payload.old as Record<string, unknown>).id);
-              deleteStoredTeamMember(delId);
+              applyRemoteTeamMemberDeletion(delId);
             }
           }
-        )
-        .on('presence', { event: 'sync' }, () => {
-          const state = supaChannel?.presenceState<{
-            id: string;
-            name: string;
-            role: string;
-            avatarColor: string;
-            viewingCardId: string | null;
-          }>();
-          if (state) {
-            const users: UserPresence[] = [];
-            Object.values(state).forEach((presences) => {
-              presences.forEach((p) => {
-                users.push({
-                  id: p.id,
-                  name: p.name,
-                  role: p.role,
-                  avatarColor: p.avatarColor,
-                  lastActive: Date.now(),
-                  viewingCardId: p.viewingCardId,
-                });
+        );
+
+      const syncPresences = () => {
+        if (!supaChannel) return;
+        const state = supaChannel.presenceState<{
+          sessionId?: string;
+          id: string;
+          name: string;
+          role: string;
+          avatarColor: string;
+          viewingCardId: string | null;
+          lastActive?: number;
+        }>();
+        if (state) {
+          const remoteUsers: UserPresence[] = [];
+          Object.values(state).forEach((presences) => {
+            presences.forEach((p) => {
+              if (p.sessionId && p.sessionId === sessionIdRef.current) return;
+              if (!p.sessionId && p.id === currentUserRef.current.id && p.name === currentUserRef.current.name) return;
+              remoteUsers.push({
+                id: p.id,
+                sessionId: p.sessionId,
+                name: p.name,
+                role: p.role,
+                avatarColor: p.avatarColor,
+                lastActive: p.lastActive || Date.now(),
+                viewingCardId: p.viewingCardId,
               });
             });
-            setActiveUsers(users);
-          }
-        })
+          });
+          setActiveUsers(remoteUsers);
+        }
+      };
+
+      supaChannel
+        .on('presence', { event: 'sync' }, syncPresences)
+        .on('presence', { event: 'join' }, syncPresences)
+        .on('presence', { event: 'leave' }, syncPresences)
         .subscribe(async (status) => {
           if (status === 'SUBSCRIBED') {
             await supaChannel?.track({
+              sessionId: sessionIdRef.current,
               id: currentUserRef.current.id,
               name: currentUserRef.current.name,
               role: currentUserRef.current.role,
               avatarColor: currentUserRef.current.avatarColor,
               viewingCardId: currentUserRef.current.viewingCardId,
+              lastActive: Date.now(),
             });
           }
         });
     }
 
-    // Heartbeat for Local BroadcastChannel presence
+    // Periodic heartbeat to keep presence and BroadcastChannel fresh
     const heartbeatInterval = setInterval(() => {
-      broadcastEvent('USER_HEARTBEAT', {
+      const payload: UserPresence = {
+        sessionId: sessionIdRef.current,
         id: currentUserRef.current.id,
         name: currentUserRef.current.name,
         role: currentUserRef.current.role,
         avatarColor: currentUserRef.current.avatarColor,
         viewingCardId: currentUserRef.current.viewingCardId,
         lastActive: Date.now(),
-      });
+      };
 
-      // Prune inactive users (older than 8 seconds)
-      setActiveUsers((prev) =>
-        prev.filter((u) => u.id === currentUserRef.current.id || Date.now() - u.lastActive < 8000)
-      );
-    }, 2500);
+      broadcastEvent('USER_HEARTBEAT', payload);
+
+      if (supaChannelRef.current) {
+        supaChannelRef.current.track(payload).catch(() => {});
+      }
+    }, 10000);
+
+    // Prune stale broadcast presences (older than 35s)
+    const pruneInterval = setInterval(() => {
+      const now = Date.now();
+      setActiveUsers((prev) => prev.filter((u) => now - (u.lastActive || 0) < 35000));
+    }, 15000);
 
     // Initial broadcast of presence
     broadcastEvent('USER_HEARTBEAT', {
+      sessionId: sessionIdRef.current,
       id: currentUserRef.current.id,
       name: currentUserRef.current.name,
       role: currentUserRef.current.role,
@@ -636,6 +709,7 @@ export function useRealtimeKanban() {
 
     return () => {
       clearInterval(heartbeatInterval);
+      clearInterval(pruneInterval);
       if (bc) {
         try {
           bc.close();
@@ -644,7 +718,9 @@ export function useRealtimeKanban() {
         }
       }
       if (supaChannel && supa) {
+        supaChannel.untrack().catch(() => {});
         supa.removeChannel(supaChannel);
+        supaChannelRef.current = null;
       }
     };
   }, [broadcastEvent, handleIncomingEvent]);
@@ -835,18 +911,33 @@ export function useRealtimeKanban() {
 
   const updateUserIdentity = useCallback(
     (name: string, role: string, avatarColor: string, memberId?: string) => {
+      const members = getStoredTeamMembers();
+      const matched = members.find(
+        (m) => m.id === memberId || m.name.toLowerCase() === name.trim().toLowerCase()
+      );
+
+      const assignedId =
+        memberId ||
+        (matched
+          ? matched.id
+          : `user-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`);
+
       const updated: UserPresence = {
-        ...currentUser,
-        id: memberId || currentUser.id,
+        id: assignedId,
         name: name.trim() || 'Collaborator',
         role: role.trim() || 'Team Member',
         avatarColor,
+        sessionId: sessionIdRef.current,
         lastActive: Date.now(),
+        viewingCardId: currentUserRef.current.viewingCardId,
       };
+
       setCurrentUser(updated);
+      currentUserRef.current = updated;
+
       recordActivity('switched identity to', `${updated.name} (${updated.role})`);
     },
-    [currentUser, recordActivity]
+    [recordActivity]
   );
 
   const resetToDemoData = useCallback(() => {

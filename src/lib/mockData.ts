@@ -26,11 +26,11 @@ export const DEFAULT_TAG_OPTIONS: CardTag[] = [
 ];
 
 export const AGENCY_MEMBERS = [
+  { id: 'user-susheel', name: 'Susheel Kumar', role: 'Founder & Tech Lead', avatarColor: '#0c66e4' },
+  { id: 'user-sanchi', name: 'Sanchi Agarwal', role: 'Co-Founder & Agency Lead', avatarColor: '#ec4899' },
   { id: 'user-1', name: 'Leo Vance', role: 'Lead Architect', avatarColor: '#3b82f6' },
   { id: 'user-2', name: 'Elena Rostova', role: 'UI/UX Director', avatarColor: '#06b6d4' },
   { id: 'user-3', name: 'Marcus Chen', role: 'Fullstack Engineer', avatarColor: '#6366f1' },
-  { id: 'user-4', name: 'Aria Bennett', role: 'Product Strategist', avatarColor: '#ec4899' },
-  { id: 'user-5', name: 'Devon Miles', role: 'QA & DevOps', avatarColor: '#10b981' },
 ];
 
 export const INITIAL_COLUMNS: KanbanColumn[] = [
